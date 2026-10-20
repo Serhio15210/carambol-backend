@@ -1,18 +1,23 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
+    // forRootAsync: настройки подключения берутся из ConfigService,
+    // поэтому модуль ждёт, пока ConfigModule прочитает .env.
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         type: 'postgres' as const,
         url: config.getOrThrow<string>('database.url'),
+        // Сущности регистрируются автоматически: каждый модуль
+        // подключает свои через TypeOrmModule.forFeature([...]).
         autoLoadEntities: true,
-        synchronize: config.get<string>('app.nodeEnv') !== 'production',
-        logging: config.get<string>('app.nodeEnv') === 'development',
+        // В разработке TypeORM сам подгоняет таблицы под сущности.
+        // В продакшене так нельзя (можно потерять данные), там будут миграции.
+        synchronize: config.get<string>('app.nodeEnv') === 'development',
+        logging: false,
       }),
     }),
   ],

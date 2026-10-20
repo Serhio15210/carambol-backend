@@ -20,11 +20,7 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@/*": ["src/*"],
-      "@/app/*": ["src/app/*"],
-      "@/entities/*": ["src/entities/*"],
-      "@/shared/*": ["src/shared/*"],
-      "@/integrations/*": ["src/integrations/*"]
+      "@/*": ["src/*"]
     },
     "types": ["node", "jest"]
   }

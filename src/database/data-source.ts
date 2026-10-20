@@ -1,3 +1,5 @@
+// Отдельное подключение для TypeORM CLI (команды migration:generate / migration:run).
+// CLI запускается без Nest, поэтому ConfigService ему недоступен: .env читаем через dotenv.
 import 'reflect-metadata';
 import { config } from 'dotenv';
 import { join } from 'path';
@@ -9,7 +11,6 @@ export default new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
   synchronize: false,
-  logging: process.env.NODE_ENV === 'development',
-  entities: [join(__dirname, '../**/*.entity.{ts,js}')],
+  entities: [join(__dirname, '../modules/**/*.entity.{ts,js}')],
   migrations: [join(__dirname, 'migrations/*.{ts,js}')],
 });
