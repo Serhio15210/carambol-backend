@@ -1,0 +1,50 @@
+name: CI
+
+# When to run: on every pull request to main and on every push to main.
+# The push trigger verifies that main stays healthy after a merge.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# The GITHUB_TOKEN issued to each run may only read the code. If a malicious step
+# ever slips into the pipeline, it cannot modify the repository
+# (principle of least privilege).
+permissions:
+  contents: read
+
+# If a new commit is pushed to the same ref while a run is still in progress,
+# the old run is cancelled: checking outdated code is pointless and wastes minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+    # A hung job should not wait for the default limit (6 hours).
+    timeout-minutes: 10
+    steps:
+      # The runner is an empty machine, so the repository must be fetched explicitly.
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Node 22 matches the Dockerfile. cache: npm keeps downloaded packages between
+      # runs (the cache key is the hash of package-lock.json).
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      # npm ci installs exactly the versions from package-lock.json and fails on mismatch.
+      - name: Install dependencies
+        run: npm ci
+
+      # lint:check is ESLint without --fix: CI must verify code, not silently rewrite it.
+      - name: Lint
+        run: npm run lint:check
+
+      - name: Build
+        run: npm run build

@@ -1,0 +1,4 @@
+# Единые окончания строк (LF) на всех системах.
+# Без этого Git на Windows подменяет LF на CRLF при checkout (core.autocrlf=true),
+# а Prettier и ESLint требуют LF, и линтер падает на каждой строке.
+* text=auto eol=lf
