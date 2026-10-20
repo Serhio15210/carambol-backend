@@ -1,0 +1,50 @@
+name: CI
+
+# Когда запускать: на каждый pull request в main и на каждый push в main.
+# Второе проверяет, что main остаётся рабочим и после слияния.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Токен GITHUB_TOKEN, который GitHub выдаёт каждому запуску, получает только право
+# читать код. Если в pipeline когда-нибудь попадёт вредоносный шаг, он ничего не
+# сможет изменить в репозитории (принцип минимальных привилегий).
+permissions:
+  contents: read
+
+# Если в ту же ветку запушили ещё раз, пока прошлый запуск идёт, старый запуск
+# отменяется: проверять устаревший код незачем, и минуты Actions не тратятся зря.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+    # Зависший job не должен висеть до лимита по умолчанию (6 часов).
+    timeout-minutes: 10
+    steps:
+      # Runner — пустая машина, поэтому код репозитория нужно скачать явно.
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Node 22 — та же версия, что в Dockerfile. cache: npm сохраняет скачанные
+      # пакеты между запусками (ключ кэша — хеш package-lock.json).
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      # npm ci ставит ровно версии из package-lock.json и падает при расхождении.
+      - name: Install dependencies
+        run: npm ci
+
+      # lint:check — линтер без --fix: CI должен проверять код, а не молча править.
+      - name: Lint
+        run: npm run lint:check
+
+      - name: Build
+        run: npm run build
