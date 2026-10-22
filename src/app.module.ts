@@ -8,9 +8,7 @@ import { DatabaseExceptionFilter } from '@/common/filters/database-exception.fil
 import { HealthModule } from '@/modules/health/health.module';
 import { UsersModule } from '@/modules/users/users.module';
 import { AuthModule } from '@/modules/auth/auth.module';
-
-// Корневой модуль: собирает инфраструктуру (конфиг, БД) и все фича-модули.
-// Новый модуль (например, Tables) подключается одной строкой в imports.
+const unused = 1;
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -23,9 +21,6 @@ import { AuthModule } from '@/modules/auth/auth.module';
     UsersModule,
     AuthModule,
   ],
-  providers: [
-    // Регистрируем фильтр глобально: он работает для всех контроллеров.
-    { provide: APP_FILTER, useClass: DatabaseExceptionFilter },
-  ],
+  providers: [{ provide: APP_FILTER, useClass: DatabaseExceptionFilter }],
 })
 export class AppModule {}
