@@ -11,7 +11,7 @@ import { Transform } from 'class-transformer';
 
 export class RegisterDto {
   @IsString()
-  @Matches('^[a-zA-Z0-9_]$')
+  @Matches('^[a-zA-Z0-9_]+$')
   @MaxLength(30, { message: 'Username must be at most 30 characters long' })
   @MinLength(3, { message: 'Username must be at least 3 characters long' })
   userName: string;
