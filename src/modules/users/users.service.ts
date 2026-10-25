@@ -29,8 +29,13 @@ export class UsersService {
     private readonly usersRepository: Repository<User>,
   ) {}
 
+  // Returns null when the user does not exist (used by JwtStrategy on every request).
+  findOneById(id: string): Promise<User | null> {
+    return this.usersRepository.findOneBy({ id });
+  }
+
   async findById(id: string): Promise<User> {
-    const user = await this.usersRepository.findOneBy({ id });
+    const user = await this.findOneById(id);
     if (!user) {
       throw new NotFoundException(`User ${id} not found`);
     }
