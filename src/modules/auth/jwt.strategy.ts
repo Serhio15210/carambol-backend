@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { JwtPayload } from './types/jwt-payload.type';
+import { UsersService } from '@/modules/users/users.service';
 import { RequestUser } from './types/request-user.type';
 
 // Passport — библиотека аутентификации из мира Express, Nest её оборачивает.
@@ -12,7 +13,10 @@ import { RequestUser } from './types/request-user.type';
 //  3. вызывает validate(), и результат записывается в request.user.
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  constructor(config: ConfigService) {
+  constructor(
+    config: ConfigService,
+    private readonly usersService: UsersService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -20,7 +24,14 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  validate(payload: JwtPayload): RequestUser {
-    return { id: payload.sub, role: payload.role };
+  // TODO(human): make the role fresh (see the lesson task in chat and jwt.strategy.spec.ts).
+  // Right now the role is simply copied from the token, so a demoted or deleted user
+  // keeps their old access until the token expires.
+  async validate(payload: JwtPayload): Promise<RequestUser> {
+    const user = await this.usersService.findOneById(payload.sub);
+    if (!user) {
+      throw new UnauthorizedException('Access denied');
+    }
+    return Promise.resolve({ id: payload.sub, role: user?.role });
   }
 }
