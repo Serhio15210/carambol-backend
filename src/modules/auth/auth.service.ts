@@ -1,5 +1,5 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
-import { hash } from 'bcryptjs';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { compare, hash } from 'bcryptjs';
 import { UsersService } from '@/modules/users/users.service';
 import { toPublicUser } from '@/modules/users/types/public-user.type';
 import { SessionsService } from './sessions.service';
@@ -28,10 +28,16 @@ export class AuthService {
     return { ...tokens, user: toPublicUser(user) };
   }
 
-  // Урок 6: логин напишешь ты (поиск пользователя, проверка пароля, создание сессии).
-  // Пока это заглушка, чтобы проект собирался и запускался на уроках 1–5.
-  // Префикс _ у параметров означает «параметр пока намеренно не используется».
-  login(_dto: LoginDto, _metadata: SessionMetadata): Promise<AuthResponse> {
-    throw new NotImplementedException('Login will be implemented in lesson 6');
+  async login(dto: LoginDto, metadata: SessionMetadata): Promise<AuthResponse> {
+    const { login, password } = dto;
+    const normalizedLogin = login.includes('@') ? login.trim().toLowerCase() : login.trim();
+    const user = await this.usersService.findByLoginWithPassword(normalizedLogin);
+    const isPasswordValid = user && (await compare(password, user.passwordHash));
+    if (!user || !isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const tokens = await this.sessionsService.createSession(user, metadata);
+    return { ...tokens, user: toPublicUser(user) };
   }
 }
