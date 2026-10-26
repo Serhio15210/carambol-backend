@@ -24,6 +24,8 @@ describe('AuthService.login', () => {
       email: 'ivan@example.com',
       phone: '+380671234567',
       role: UserRole.USER,
+      blockedAt: null,
+      deletedAt: null,
       passwordHash: await hash('password123', 4), // low cost keeps the test fast
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -94,5 +96,17 @@ describe('AuthService.login', () => {
     await service.login({ login: ' Ivan_1 ', password: 'password123' }, metadata);
 
     expect(findByLoginWithPassword).toHaveBeenCalledWith('Ivan_1');
+  });
+
+  it('lets a blocked user log in and returns blockedAt for the client', async () => {
+    findByLoginWithPassword.mockResolvedValue({ ...user, blockedAt: new Date() });
+
+    const result = await service.login(
+      { login: 'ivan@example.com', password: 'password123' },
+      metadata,
+    );
+
+    expect(result.user.blockedAt).toBeInstanceOf(Date);
+    expect(createSession).toHaveBeenCalled();
   });
 });

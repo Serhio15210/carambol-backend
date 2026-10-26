@@ -24,14 +24,14 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  // TODO(human): make the role fresh (see the lesson task in chat and jwt.strategy.spec.ts).
-  // Right now the role is simply copied from the token, so a demoted or deleted user
-  // keeps their old access until the token expires.
+  // Runs on every request: role and block status always come from the database.
+  // A deleted (not found) user gets 401 at once; a blocked one stays authenticated,
+  // and BlockedUserGuard limits what they may call.
   async validate(payload: JwtPayload): Promise<RequestUser> {
     const user = await this.usersService.findOneById(payload.sub);
     if (!user) {
       throw new UnauthorizedException('Access denied');
     }
-    return Promise.resolve({ id: payload.sub, role: user?.role });
+    return { id: user.id, role: user.role, isBlocked: user.blockedAt !== null };
   }
 }

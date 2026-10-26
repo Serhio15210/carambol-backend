@@ -17,16 +17,16 @@ describe('JwtStrategy.validate', () => {
   });
 
   it('returns the id and role of an existing user', async () => {
-    findOneById.mockResolvedValue({ id: 'u1', role: UserRole.USER });
+    findOneById.mockResolvedValue({ id: 'u1', role: UserRole.USER, blockedAt: null });
 
     const result = await strategy.validate({ sub: 'u1', role: UserRole.USER });
 
-    expect(result).toEqual({ id: 'u1', role: UserRole.USER });
+    expect(result).toEqual({ id: 'u1', role: UserRole.USER, isBlocked: false });
   });
 
   it('uses the CURRENT role from the database, not the role inside the token', async () => {
     // the token was issued when the user was an admin, but they were demoted since
-    findOneById.mockResolvedValue({ id: 'u1', role: UserRole.USER });
+    findOneById.mockResolvedValue({ id: 'u1', role: UserRole.USER, blockedAt: null });
 
     const result = await strategy.validate({ sub: 'u1', role: UserRole.ADMIN });
 
@@ -39,5 +39,13 @@ describe('JwtStrategy.validate', () => {
     await expect(
       Promise.resolve(strategy.validate({ sub: 'u1', role: UserRole.USER })),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('keeps a blocked user authenticated but marks them as blocked', async () => {
+    findOneById.mockResolvedValue({ id: 'u1', role: UserRole.USER, blockedAt: new Date() });
+
+    const result = await strategy.validate({ sub: 'u1', role: UserRole.USER });
+
+    expect(result.isBlocked).toBe(true);
   });
 });

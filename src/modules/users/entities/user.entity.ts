@@ -1,6 +1,7 @@
 import {
   Column,
   CreateDateColumn,
+  DeleteDateColumn,
   Entity,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -44,4 +45,12 @@ export class User {
 
   @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
+
+  // When an admin blocked the account (null = active). A timestamp also tells WHEN, a boolean would not.
+  @Column({ type: 'timestamptz', nullable: true })
+  blockedAt: Date | null;
+
+  // Soft delete: softDelete() fills this column, and TypeORM then hides the row from every find.
+  @DeleteDateColumn({ type: 'timestamptz' })
+  deletedAt: Date | null;
 }

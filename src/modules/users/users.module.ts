@@ -4,6 +4,7 @@ import { User } from './entities/user.entity';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { AdminUsersController } from './admin-users.controller';
+import { AuditModule } from '@/modules/audit/audit.module';
 
 // Модуль — граница фичи. Он объявляет:
 //  imports     — что ему нужно от других модулей;
@@ -11,7 +12,7 @@ import { AdminUsersController } from './admin-users.controller';
 //  providers   — какие классы Nest должен создать и внедрять (сервисы и т.п.);
 //  exports     — что из этого он отдаёт наружу другим модулям.
 @Module({
-  imports: [TypeOrmModule.forFeature([User])],
+  imports: [TypeOrmModule.forFeature([User]), AuditModule],
   controllers: [UsersController, AdminUsersController],
   providers: [UsersService],
   // Наружу отдаём только сервис. Repository<User> остаётся внутри модуля,

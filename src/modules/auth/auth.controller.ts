@@ -5,6 +5,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { Auth } from './decorators/auth.decorator';
+import { AllowBlocked } from './decorators/allow-blocked.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { RequestUser } from './types/request-user.type';
 import { SessionMetadata } from './types/auth-response.type';
@@ -51,6 +52,7 @@ export class AuthController {
 
   // POST /api/auth/logout-all — выйти на всех устройствах (нужен access-токен)
   @Auth()
+  @AllowBlocked()
   @Post('logout-all')
   @HttpCode(HttpStatus.NO_CONTENT)
   logoutAll(@CurrentUser() user: RequestUser) {

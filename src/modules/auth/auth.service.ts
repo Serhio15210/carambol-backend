@@ -1,15 +1,12 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { compare, hash } from 'bcryptjs';
+import { compare } from 'bcryptjs';
+import { hashPassword } from '@/common/security/password';
 import { UsersService } from '@/modules/users/users.service';
 import { toPublicUser } from '@/modules/users/types/public-user.type';
 import { SessionsService } from './sessions.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponse, SessionMetadata } from './types/auth-response.type';
-
-// Сколько раундов хеширования делает bcrypt: 2^10 итераций.
-// Больше — медленнее подбор пароля, но и медленнее логин.
-const BCRYPT_ROUNDS = 10;
 
 @Injectable()
 export class AuthService {
@@ -20,7 +17,7 @@ export class AuthService {
 
   async register(dto: RegisterDto, metadata: SessionMetadata): Promise<AuthResponse> {
     const { password, ...profile } = dto;
-    const passwordHash = await hash(password, BCRYPT_ROUNDS);
+    const passwordHash = await hashPassword(password);
 
     const user = await this.usersService.create({ ...profile, passwordHash });
     const tokens = await this.sessionsService.createSession(user, metadata);
@@ -36,6 +33,8 @@ export class AuthService {
     if (!user || !isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
+    // A blocked user still logs in: the client sees user.blockedAt and shows a banner,
+    // while BlockedUserGuard denies every action except the @AllowBlocked routes.
 
     const tokens = await this.sessionsService.createSession(user, metadata);
     return { ...tokens, user: toPublicUser(user) };

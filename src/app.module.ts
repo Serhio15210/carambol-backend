@@ -8,6 +8,7 @@ import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
 import { HealthModule } from '@/modules/health/health.module';
 import { UsersModule } from '@/modules/users/users.module';
 import { AuthModule } from '@/modules/auth/auth.module';
+import { AuditModule } from '@/modules/audit/audit.module';
 
 // Корневой модуль: собирает инфраструктуру (конфиг, БД) и все фича-модули.
 // Новый модуль (например, Tables) подключается одной строкой в imports.
@@ -22,6 +23,7 @@ import { AuthModule } from '@/modules/auth/auth.module';
     HealthModule,
     UsersModule,
     AuthModule,
+    AuditModule,
   ],
   providers: [
     // Регистрируем фильтр глобально: он работает для всех контроллеров.
