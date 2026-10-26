@@ -40,4 +40,12 @@ describe('JwtStrategy.validate', () => {
       Promise.resolve(strategy.validate({ sub: 'u1', role: UserRole.USER })),
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
+
+  it('rejects a blocked user', async () => {
+    findOneById.mockResolvedValue({ id: 'u1', role: UserRole.USER, blockedAt: new Date() });
+
+    await expect(
+      Promise.resolve(strategy.validate({ sub: 'u1', role: UserRole.USER })),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
 });

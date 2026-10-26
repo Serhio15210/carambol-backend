@@ -48,7 +48,8 @@ export class SessionsService {
       relations: { user: true },
     });
 
-    if (!session || session.expiresAt < new Date()) {
+    // A deleted user is not loaded (session.user is null), a blocked one must not get new tokens.
+    if (!session || session.expiresAt < new Date() || !session.user || session.user.blockedAt) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
