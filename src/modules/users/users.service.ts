@@ -14,7 +14,7 @@ import { User } from './entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { GetUsersQueryDto } from './dto/get-users-query.dto';
 import { CreateUserByAdminDto } from './dto/create-user-by-admin.dto';
-import { UserRole } from './types/user-role.enum';
+import { ROLE_RANK, UserRole } from './types/user-role.enum';
 import { PublicUser, toPublicUser } from './types/public-user.type';
 
 export type CreateUserInput = {
@@ -26,6 +26,10 @@ export type CreateUserInput = {
   passwordHash: string;
   role?: UserRole;
 };
+
+// Who performs an admin operation. RequestUser (from Auth) fits this shape,
+// but Users does not import Auth types: the dependency goes Auth → Users, not back.
+export type Actor = Pick<User, 'id' | 'role'>;
 
 // Сервис — это бизнес-логика модуля. Контроллер только принимает HTTP-запрос
 // и передаёт данные сюда, а сервис решает, что с ними делать.
@@ -78,44 +82,45 @@ export class UsersService {
     return this.usersRepository.save(user);
   }
 
-  // ---------- admin operations: each one leaves an entry in the audit log ----------
+  // ---------- admin operations: each one checks the role hierarchy and leaves an audit entry ----------
 
   // Returns a PUBLIC user: the freshly saved entity still holds passwordHash in memory,
   // and select: false only protects rows that are read from the database.
-  async createByAdmin(actorId: string, dto: CreateUserByAdminDto): Promise<PublicUser> {
+  async createByAdmin(actor: Actor, dto: CreateUserByAdminDto): Promise<PublicUser> {
+    // Granting a role = managing someone with that role: an admin creates only users.
+    this.assertCanManage(actor, dto.role ?? UserRole.USER);
     const { password, ...profile } = dto;
     const user = await this.create({ ...profile, passwordHash: await hashPassword(password) });
-    await this.audit.record(actorId, AuditAction.UserCreate, user.id, { role: user.role });
+    await this.audit.record(actor.id, AuditAction.UserCreate, user.id, { role: user.role });
     return toPublicUser(user);
   }
 
-  async updateByAdmin(actorId: string, id: string, data: UpdateProfileDto): Promise<User> {
-    const user = await this.updateProfile(id, data);
-    await this.audit.record(actorId, AuditAction.UserUpdate, id, { fields: Object.keys(data) });
-    return user;
+  async updateByAdmin(actor: Actor, id: string, data: UpdateProfileDto): Promise<User> {
+    const user = await this.findById(id);
+    this.assertCanManage(actor, user.role);
+    this.usersRepository.merge(user, data);
+    const saved = await this.usersRepository.save(user);
+    await this.audit.record(actor.id, AuditAction.UserUpdate, id, { fields: Object.keys(data) });
+    return saved;
   }
 
-  async updateRole(actorId: string, id: string, role: UserRole): Promise<User> {
-    this.assertNotSelf(actorId, id, 'change your own role');
+  async updateRole(actor: Actor, id: string, role: UserRole): Promise<User> {
     const user = await this.findById(id);
+    this.assertCanManage(actor, user.role); // may I manage this person?
+    this.assertCanManage(actor, role); // may I grant this role?
     const previousRole = user.role;
     user.role = role;
     const saved = await this.usersRepository.save(user);
-    await this.audit.record(actorId, AuditAction.UserRoleChange, id, {
+    await this.audit.record(actor.id, AuditAction.UserRoleChange, id, {
       from: previousRole,
       to: role,
     });
     return saved;
   }
 
-  // TODO(human): implement blocking and unblocking (see the lesson task in chat and users.service.spec.ts).
-  // Rename the unused parameters (_actorId, _targetId, _blocked) once you use them.
-  async setBlocked(actorId: string, targetId: string, blocked: boolean): Promise<User> {
-    this.assertNotSelf(actorId, targetId, 'block your own account here');
-    const user = await this.findOneById(targetId);
-    if (!user) {
-      throw new NotFoundException(`User ${targetId} not found`);
-    }
+  async setBlocked(actor: Actor, targetId: string, blocked: boolean): Promise<User> {
+    const user = await this.findById(targetId);
+    this.assertCanManage(actor, user.role);
 
     const isBlocked = user.blockedAt !== null;
     if (isBlocked === blocked) {
@@ -124,7 +129,7 @@ export class UsersService {
     user.blockedAt = blocked ? new Date() : null;
     const updateUser = await this.usersRepository.save(user);
     await this.audit.record(
-      actorId,
+      actor.id,
       blocked ? AuditAction.UserBlock : AuditAction.UserUnblock,
       targetId,
       { blocked },
@@ -132,11 +137,11 @@ export class UsersService {
     return updateUser;
   }
 
-  async softDelete(actorId: string, id: string): Promise<void> {
-    this.assertNotSelf(actorId, id, 'delete your own account here');
-    await this.findById(id);
+  async softDelete(actor: Actor, id: string): Promise<void> {
+    const user = await this.findById(id);
+    this.assertCanManage(actor, user.role);
     await this.usersRepository.softDelete(id);
-    await this.audit.record(actorId, AuditAction.UserDelete, id);
+    await this.audit.record(actor.id, AuditAction.UserDelete, id);
   }
 
   async findAll(query: GetUsersQueryDto): Promise<PaginatedResponse<User>> {
@@ -168,10 +173,10 @@ export class UsersService {
     return paginate(users, total, page, limit);
   }
 
-  // An admin must not lock themselves out (own role changed, own account blocked or deleted).
-  private assertNotSelf(actorId: string, targetId: string, action: string): void {
-    if (actorId === targetId) {
-      throw new ForbiddenException(`You cannot ${action}`);
+  // Role hierarchy: manage only strictly lower ranks. Equal rank is denied, which also covers acting on yourself.
+  private assertCanManage(actor: Actor, targetRole: UserRole): void {
+    if (ROLE_RANK[actor.role] <= ROLE_RANK[targetRole]) {
+      throw new ForbiddenException('You cannot manage this user');
     }
   }
 }

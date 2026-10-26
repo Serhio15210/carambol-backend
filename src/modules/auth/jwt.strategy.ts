@@ -24,13 +24,14 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  // Runs on every request: the role always comes from the database, and a deleted
-  // (not found) or blocked user loses access at once, without waiting for the token to expire.
+  // Runs on every request: role and block status always come from the database.
+  // A deleted (not found) user gets 401 at once; a blocked one stays authenticated,
+  // and BlockedUserGuard limits what they may call.
   async validate(payload: JwtPayload): Promise<RequestUser> {
     const user = await this.usersService.findOneById(payload.sub);
-    if (!user || user.blockedAt) {
+    if (!user) {
       throw new UnauthorizedException('Access denied');
     }
-    return { id: user.id, role: user.role };
+    return { id: user.id, role: user.role, isBlocked: user.blockedAt !== null };
   }
 }

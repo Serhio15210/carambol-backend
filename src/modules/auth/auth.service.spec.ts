@@ -1,4 +1,4 @@
-import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import { hash } from 'bcryptjs';
 import { User } from '@/modules/users/entities/user.entity';
 import { UserRole } from '@/modules/users/types/user-role.enum';
@@ -98,12 +98,15 @@ describe('AuthService.login', () => {
     expect(findByLoginWithPassword).toHaveBeenCalledWith('Ivan_1');
   });
 
-  it('rejects a blocked user with 403 only after a correct password', async () => {
+  it('lets a blocked user log in and returns blockedAt for the client', async () => {
     findByLoginWithPassword.mockResolvedValue({ ...user, blockedAt: new Date() });
 
-    await expect(
-      service.login({ login: 'ivan@example.com', password: 'password123' }, metadata),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(createSession).not.toHaveBeenCalled();
+    const result = await service.login(
+      { login: 'ivan@example.com', password: 'password123' },
+      metadata,
+    );
+
+    expect(result.user.blockedAt).toBeInstanceOf(Date);
+    expect(createSession).toHaveBeenCalled();
   });
 });

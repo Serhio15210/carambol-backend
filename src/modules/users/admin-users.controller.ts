@@ -22,8 +22,8 @@ import { CreateUserByAdminDto } from './dto/create-user-by-admin.dto';
 import { UserRole } from './types/user-role.enum';
 
 // Только для администраторов: RolesGuard вернёт 403 всем остальным.
-// The acting admin (@CurrentUser) is passed on for self-protection and the audit log.
-@Auth(UserRole.ADMIN)
+// The acting admin (@CurrentUser) is passed on for the role hierarchy check and the audit log.
+@Auth(UserRole.ADMIN, UserRole.SUPERADMIN)
 @Controller('admin/users')
 export class AdminUsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -31,7 +31,7 @@ export class AdminUsersController {
   // POST /api/admin/users
   @Post()
   create(@CurrentUser() actor: RequestUser, @Body() body: CreateUserByAdminDto) {
-    return this.usersService.createByAdmin(actor.id, body);
+    return this.usersService.createByAdmin(actor, body);
   }
 
   // GET /api/admin/users?page=1&limit=20&search=ivan
@@ -54,7 +54,7 @@ export class AdminUsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: UpdateProfileDto,
   ) {
-    return this.usersService.updateByAdmin(actor.id, id, body);
+    return this.usersService.updateByAdmin(actor, id, body);
   }
 
   // PATCH /api/admin/users/:id/role   body: { "role": "admin" }
@@ -64,27 +64,27 @@ export class AdminUsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: UpdateUserRoleDto,
   ) {
-    return this.usersService.updateRole(actor.id, id, body.role);
+    return this.usersService.updateRole(actor, id, body.role);
   }
 
   // POST /api/admin/users/:id/block
   @Post(':id/block')
   @HttpCode(HttpStatus.OK)
   block(@CurrentUser() actor: RequestUser, @Param('id', ParseUUIDPipe) id: string) {
-    return this.usersService.setBlocked(actor.id, id, true);
+    return this.usersService.setBlocked(actor, id, true);
   }
 
   // POST /api/admin/users/:id/unblock
   @Post(':id/unblock')
   @HttpCode(HttpStatus.OK)
   unblock(@CurrentUser() actor: RequestUser, @Param('id', ParseUUIDPipe) id: string) {
-    return this.usersService.setBlocked(actor.id, id, false);
+    return this.usersService.setBlocked(actor, id, false);
   }
 
   // DELETE /api/admin/users/:id   (soft delete: the row stays, deletedAt is filled)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@CurrentUser() actor: RequestUser, @Param('id', ParseUUIDPipe) id: string) {
-    return this.usersService.softDelete(actor.id, id);
+    return this.usersService.softDelete(actor, id);
   }
 }

@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Patch } from '@nestjs/common';
 import { Auth } from '@/modules/auth/decorators/auth.decorator';
+import { AllowBlocked } from '@/modules/auth/decorators/allow-blocked.decorator';
 import { CurrentUser } from '@/modules/auth/decorators/current-user.decorator';
 import { RequestUser } from '@/modules/auth/types/request-user.type';
 import { UsersService } from './users.service';
@@ -12,7 +13,8 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  // GET /api/users/me
+  // GET /api/users/me   (a blocked user may read the profile to see blockedAt)
+  @AllowBlocked()
   @Get('me')
   getMe(@CurrentUser() user: RequestUser) {
     return this.usersService.findById(user.id);

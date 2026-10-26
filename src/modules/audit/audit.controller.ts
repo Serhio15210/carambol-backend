@@ -4,7 +4,7 @@ import { Auth } from '@/modules/auth/decorators/auth.decorator';
 import { UserRole } from '@/modules/users/types/user-role.enum';
 import { AuditService } from './audit.service';
 
-@Auth(UserRole.ADMIN)
+@Auth(UserRole.ADMIN, UserRole.SUPERADMIN)
 @Controller('admin/audit-logs')
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}

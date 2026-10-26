@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { compare } from 'bcryptjs';
 import { hashPassword } from '@/common/security/password';
 import { UsersService } from '@/modules/users/users.service';
@@ -33,10 +33,8 @@ export class AuthService {
     if (!user || !isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    // Checked only AFTER a correct password, so it reveals nothing to someone guessing logins.
-    if (user.blockedAt) {
-      throw new ForbiddenException('Account is blocked');
-    }
+    // A blocked user still logs in: the client sees user.blockedAt and shows a banner,
+    // while BlockedUserGuard denies every action except the @AllowBlocked routes.
 
     const tokens = await this.sessionsService.createSession(user, metadata);
     return { ...tokens, user: toPublicUser(user) };

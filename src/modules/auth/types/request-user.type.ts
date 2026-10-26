@@ -4,4 +4,6 @@ import { UserRole } from '@/modules/users/types/user-role.enum';
 export type RequestUser = {
   id: string;
   role: UserRole;
+  // A blocked user is still authenticated; BlockedUserGuard decides what they may call.
+  isBlocked: boolean;
 };
