@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { ApiHideProperty } from '@nestjs/swagger';
 import { UserRole } from '../types/user-role.enum';
 
 // Entity — это класс, который TypeORM превращает в таблицу.
@@ -34,6 +35,8 @@ export class User {
   // select: false — по умолчанию колонка НЕ попадает в SELECT.
   // Так хеш пароля не утечёт в ответ API, даже если кто-то вернёт entity целиком.
   // Когда хеш действительно нужен (логин), его запрашивают явно через addSelect.
+  // Hidden from the API docs too: select: false protects queries, not the schema built from this class.
+  @ApiHideProperty()
   @Column({ select: false })
   passwordHash: string;
 

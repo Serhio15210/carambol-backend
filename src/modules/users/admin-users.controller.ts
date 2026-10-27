@@ -1,3 +1,4 @@
+import { ApiTags } from '@nestjs/swagger';
 import {
   Body,
   Controller,
@@ -24,6 +25,7 @@ import { UserRole } from './types/user-role.enum';
 // Только для администраторов: RolesGuard вернёт 403 всем остальным.
 // The acting admin (@CurrentUser) is passed on for the role hierarchy check and the audit log.
 @Auth(UserRole.ADMIN, UserRole.SUPERADMIN)
+@ApiTags('admin: users')
 @Controller('admin/users')
 export class AdminUsersController {
   constructor(private readonly usersService: UsersService) {}
