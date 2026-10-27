@@ -6,6 +6,14 @@
   "compilerOptions": {
     "deleteOutDir": true,
     "webpack": false,
-    "assets": ["**/*.json"]
+    "assets": ["**/*.json"],
+    "plugins": [
+      {
+        "name": "@nestjs/swagger",
+        "options": {
+          "introspectComments": true
+        }
+      }
+    ]
   }
 }

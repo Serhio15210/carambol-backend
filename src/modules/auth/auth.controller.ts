@@ -1,3 +1,4 @@
+import { ApiTags } from '@nestjs/swagger';
 import { Body, Controller, Headers, HttpCode, HttpStatus, Ip, Post } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SessionsService } from './sessions.service';
@@ -14,6 +15,7 @@ import { SessionMetadata } from './types/auth-response.type';
 //   router.post('/auth/login', (req, res) => { ... })
 // Здесь то же самое, только маршрут задают декораторы, body уже провалидирован,
 // а возвращаемое значение Nest сам превратит в JSON-ответ.
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(

@@ -1,3 +1,4 @@
+import { ApiTags } from '@nestjs/swagger';
 import { Body, Controller, Get, Patch } from '@nestjs/common';
 import { Auth } from '@/modules/auth/decorators/auth.decorator';
 import { AllowBlocked } from '@/modules/auth/decorators/allow-blocked.decorator';
@@ -9,6 +10,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 // Все маршруты начинаются с /api/users (префикс /api задан в main.ts).
 // @Auth() без ролей — пускаем любого залогиненного пользователя.
 @Auth()
+@ApiTags('users')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
