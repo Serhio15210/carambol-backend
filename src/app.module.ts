@@ -9,6 +9,7 @@ import { HealthModule } from '@/modules/health/health.module';
 import { UsersModule } from '@/modules/users/users.module';
 import { AuthModule } from '@/modules/auth/auth.module';
 import { AuditModule } from '@/modules/audit/audit.module';
+import { BilliardTablesModule } from '@/modules/tables/billiard-tables.module';
 
 // Корневой модуль: собирает инфраструктуру (конфиг, БД) и все фича-модули.
 // Новый модуль (например, Tables) подключается одной строкой в imports.
@@ -22,6 +23,7 @@ import { AuditModule } from '@/modules/audit/audit.module';
     DatabaseModule,
     HealthModule,
     UsersModule,
+    BilliardTablesModule,
     AuthModule,
     AuditModule,
   ],
