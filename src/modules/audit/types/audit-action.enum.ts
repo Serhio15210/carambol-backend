@@ -7,4 +7,8 @@ export enum AuditAction {
   UserBlock = 'user.block',
   UserUnblock = 'user.unblock',
   UserDelete = 'user.delete',
+  TableCreate = 'table.create',
+  TableUpdate = 'table.update',
+  TableDelete = 'table.delete',
+  TableRestore = 'table.restore',
 }
