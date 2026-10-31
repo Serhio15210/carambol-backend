@@ -14,9 +14,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
         // Сущности регистрируются автоматически: каждый модуль
         // подключает свои через TypeOrmModule.forFeature([...]).
         autoLoadEntities: true,
-        // В разработке TypeORM сам подгоняет таблицы под сущности.
-        // В продакшене так нельзя (можно потерять данные), там будут миграции.
-        synchronize: config.get<string>('app.nodeEnv') === 'development',
+        // The schema changes ONLY through migrations (src/database/migrations), in every environment:
+        // synchronize can drop columns with data and leaves no history to review or roll back.
+        synchronize: false,
         logging: false,
       }),
     }),
