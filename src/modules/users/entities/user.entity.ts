@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -12,11 +13,14 @@ import { UserRole } from '../types/user-role.enum';
 // Entity — это класс, который TypeORM превращает в таблицу.
 // Один экземпляр класса = одна строка таблицы "users".
 @Entity('users')
+@Index(['userName'], { unique: true, where: '"deletedAt" IS NULL' })
+@Index(['email'], { unique: true, where: '"deletedAt" IS NULL' })
+@Index(['phone'], { unique: true, where: '"deletedAt" IS NULL' })
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true })
+  @Column()
   userName: string;
 
   @Column()
@@ -26,10 +30,10 @@ export class User {
   lastName: string;
 
   // Тип колонки указан явно: TypeORM не умеет сам выводить тип из `string | null`.
-  @Column({ type: 'varchar', unique: true, nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   email: string | null;
 
-  @Column({ unique: true })
+  @Column()
   phone: string;
 
   // select: false — по умолчанию колонка НЕ попадает в SELECT.
