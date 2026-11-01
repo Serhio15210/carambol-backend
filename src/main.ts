@@ -1,27 +1,15 @@
-import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from '@/app.module';
+import { configureApp } from '@/app.setup';
 
 // Точка входа. Аналог в Express:
 //   const app = express(); app.use(express.json()); app.listen(3000);
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
-  // Все маршруты начинаются с /api: /api/auth/login, /api/users/me ...
-  app.setGlobalPrefix('api');
-  // URI versioning: every route gets /v1 (/api/v1/users/me) unless it is VERSION_NEUTRAL.
-  app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
-
-  // Глобальная валидация входящих данных по DTO-классам.
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true, // удалить из body поля, которых нет в DTO
-      forbidNonWhitelisted: true, // ...или вернуть 400, если такие поля пришли
-      transform: true, // превратить plain JSON в экземпляр DTO-класса
-    }),
-  );
+  configureApp(app); // prefix, versioning, validation: shared with the e2e tests
 
   // При остановке (Ctrl+C, docker stop) Nest корректно закроет соединения с БД.
   app.enableShutdownHooks();
