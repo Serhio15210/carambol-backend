@@ -10,7 +10,7 @@ import { GetBilliardTablesQueryDto } from './dto/get-billiard-tables-query.dto';
 import { BilliardTableStatus } from './types/table-status.enum';
 import { BilliardTableType } from './types/table-type.enum';
 import { BilliardTablesService } from './billiard-tables.service';
-import { MIN_GAP_CM } from './table-layout';
+import { RoomsService } from '@/modules/clubs/rooms.service';
 
 type FindAndCountArgs = {
   where?: Record<string, unknown>;
@@ -51,7 +51,13 @@ class FakeTablesRepository {
       this.copy((withDeleted ? this.rows : this.active()).find((r) => r.id === where.id)),
     );
 
-  find = () => Promise.resolve(this.active().map((r) => ({ ...r })));
+  // Only the active tables of one room: the service must not load other rooms' tables.
+  find = ({ where }: { where?: { roomId?: string } } = {}) =>
+    Promise.resolve(
+      this.active()
+        .filter((r) => where?.roomId === undefined || r.roomId === where.roomId)
+        .map((r) => ({ ...r })),
+    );
 
   findAndCount = ({ where = {}, order, skip = 0, take }: FindAndCountArgs) => {
     let items = this.active().filter((row) =>
@@ -82,6 +88,7 @@ class FakeTablesRepository {
   seed(data: Partial<BilliardTable>) {
     const row = {
       id: `seed${this.nextId++}`,
+      roomId: 'room-1',
       type: BilliardTableType.POOL,
       status: BilliardTableStatus.ACTIVE,
       lengthCm: 300,
@@ -117,6 +124,7 @@ const newTable = (
   extra: Partial<CreateBilliardTableDto> = {},
 ) =>
   ({
+    roomId: 'room-1',
     number,
     type: BilliardTableType.POOL,
     lengthCm: 300,
@@ -135,16 +143,45 @@ const query = (extra: Partial<GetBilliardTablesQueryDto> = {}): GetBilliardTable
   ...extra,
 });
 
+// Rooms the fake RoomsService knows. Every club keeps `minGapCm` between tables and from the walls.
+type RoomStub = {
+  id: string;
+  name: string;
+  widthCm: number;
+  lengthCm: number;
+  club: { minGapCm: number };
+};
+const roomStub = (id: string, minGapCm = 150, widthCm = 5000, lengthCm = 5000): RoomStub => ({
+  id,
+  name: id,
+  widthCm,
+  lengthCm,
+  club: { minGapCm },
+});
+const knownRooms: Record<string, RoomStub> = {
+  'room-1': roomStub('room-1'),
+  'room-2': roomStub('room-2'), // another room of the same size
+  relaxed: roomStub('relaxed', 50), // a club with a narrow passage
+  small: roomStub('small', 150, 1000, 800), // 1000 × 800 cm
+};
+
 describe('BilliardTablesService', () => {
   let repo: FakeTablesRepository;
   const record = jest.fn();
+  const findRoom = jest.fn();
   let service: BilliardTablesService;
 
   beforeEach(() => {
     record.mockReset().mockResolvedValue(undefined);
+    findRoom
+      .mockReset()
+      .mockImplementation((id: string) =>
+        knownRooms[id] ? Promise.resolve(knownRooms[id]) : Promise.reject(new NotFoundException()),
+      );
     repo = new FakeTablesRepository();
     service = new BilliardTablesService(
       repo as unknown as Repository<BilliardTable>,
+      { findRoomWithClub: findRoom } as unknown as RoomsService,
       { record } as unknown as AuditService,
     );
   });
@@ -273,9 +310,9 @@ describe('BilliardTablesService', () => {
   });
 
   // Table A below sits at x 350..650, y 425..575 (center 500,500; 300 × 150; rotation 0).
-  // G = MIN_GAP_CM: the passage the service must keep between table edges.
+  // G: the passage of the club of room-1 (150 cm) that the service must keep between table edges.
   describe('stage 4: tables keep a passage between them on the hall plan', () => {
-    const G = MIN_GAP_CM;
+    const G = 150;
 
     it('rejects a table that overlaps another one and saves nothing', async () => {
       await service.create(actor, newTable(1, 500));
@@ -286,14 +323,14 @@ describe('BilliardTablesService', () => {
       expect(repo.rows).toHaveLength(1);
     });
 
-    it('allows a table exactly MIN_GAP_CM away', async () => {
+    it('allows a table exactly one passage away', async () => {
       await service.create(actor, newTable(1, 500));
 
       // B: x (650 + G)..(950 + G), its left edge is G cm from A's right edge
       await expect(service.create(actor, newTable(2, 800 + G))).resolves.toBeDefined();
     });
 
-    it('rejects a table closer than MIN_GAP_CM', async () => {
+    it('rejects a table closer than one passage', async () => {
       await service.create(actor, newTable(1, 500));
 
       await expect(service.create(actor, newTable(2, 800 + G - 1))).rejects.toBeInstanceOf(
@@ -344,6 +381,79 @@ describe('BilliardTablesService', () => {
 
       await expect(service.restore(actor, a.id)).rejects.toBeInstanceOf(ConflictException);
       await expect(service.findById(a.id)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  // Room "small" is 1000 × 800 cm with a 150 cm passage, so a 300 × 150 table (rotation 0)
+  // must have its center at x 300..700 and y 225..575 (the margin is measured to the table EDGE).
+  describe('stage 5: tables belong to rooms', () => {
+    it('returns 404 when the room does not exist and saves nothing', async () => {
+      await expect(
+        service.create(actor, newTable(1, 500, 500, { roomId: 'ghost-room' })),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(repo.rows).toHaveLength(0);
+    });
+
+    it('lets two rooms have tables at the same coordinates', async () => {
+      await service.create(actor, newTable(1, 500));
+
+      await expect(
+        service.create(actor, newTable(1, 500, 500, { roomId: 'room-2' })),
+      ).resolves.toBeDefined();
+    });
+
+    it("uses the passage of the room's club: a narrow passage allows closer tables", async () => {
+      await service.create(actor, newTable(1, 500, 500, { roomId: 'relaxed' }));
+      // 650 + 50 = 700 is the first allowed left edge, so the center is 850
+      await expect(
+        service.create(actor, newTable(2, 850, 500, { roomId: 'relaxed' })),
+      ).resolves.toBeDefined();
+
+      // the same distance is too close in a room whose club wants 150 cm
+      await service.create(actor, newTable(3, 500));
+      await expect(service.create(actor, newTable(4, 850))).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+
+    it('lists the tables of one room only', async () => {
+      repo.seed({ number: 1, roomId: 'room-1' });
+      repo.seed({ number: 2, roomId: 'room-2' });
+
+      const page = await service.findAll(query({ roomId: 'room-2' }));
+
+      expect(page.items.map((t) => t.number)).toEqual([2]);
+    });
+
+    it('rejects a table that is closer to a wall than the passage (409) and saves nothing', async () => {
+      await expect(
+        service.create(actor, newTable(1, 299, 400, { roomId: 'small' })),
+      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(
+        service.create(actor, newTable(1, 400, 224, { roomId: 'small' })),
+      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(
+        service.create(actor, newTable(1, 701, 400, { roomId: 'small' })),
+      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(
+        service.create(actor, newTable(1, 400, 576, { roomId: 'small' })),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(repo.rows).toHaveLength(0);
+    });
+
+    it('allows a table exactly at the wall margin', async () => {
+      await expect(
+        service.create(actor, newTable(1, 300, 225, { roomId: 'small' })),
+      ).resolves.toBeDefined();
+    });
+
+    it('rejects moving a table through a wall (409) and keeps the old position', async () => {
+      const table = await service.create(actor, newTable(1, 500, 400, { roomId: 'small' }));
+
+      await expect(service.update(actor, table.id, { x: 100 })).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect((await service.findById(table.id)).x).toBe(500);
     });
   });
 });

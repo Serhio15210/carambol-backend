@@ -1,8 +1,11 @@
-import { IsEnum, IsIn, IsInt, IsOptional, Min } from 'class-validator';
+import { IsEnum, IsIn, IsInt, IsOptional, IsUUID, Min } from 'class-validator';
 import { BilliardTableType } from '@/modules/tables/types/table-type.enum';
 import { BilliardTableStatus } from '@/modules/tables/types/table-status.enum';
 
 export class CreateBilliardTableDto {
+  @IsUUID()
+  roomId: string;
+
   @IsInt()
   @Min(1)
   number: number;

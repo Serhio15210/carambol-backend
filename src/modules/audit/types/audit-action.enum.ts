@@ -11,4 +11,12 @@ export enum AuditAction {
   TableUpdate = 'table.update',
   TableDelete = 'table.delete',
   TableRestore = 'table.restore',
+  ClubCreate = 'club.create',
+  ClubUpdate = 'club.update',
+  ClubDelete = 'club.delete',
+  RoomCreate = 'room.create',
+  RoomUpdate = 'room.update',
+  RoomDelete = 'room.delete',
+  ClubStaffSet = 'club.staff_set',
+  ClubStaffRemove = 'club.staff_remove',
 }
