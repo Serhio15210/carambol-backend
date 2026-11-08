@@ -1,4 +1,4 @@
-import { tablesOverlap } from './table-layout';
+import { isInsideRoom, tablesOverlap } from './table-layout';
 
 // Stage 4. Table A: center (500, 500), 300 × 150 cm, rotation 0 → x 350..650, y 425..575.
 const a = { x: 500, y: 500, lengthCm: 300, widthCm: 150, rotation: 0 };
@@ -71,5 +71,50 @@ describe('tablesOverlap', () => {
       expect(tablesOverlap(a, { ...a, x: 740, rotation: 90 }, 10)).toBe(false);
       expect(tablesOverlap(a, { ...a, x: 740, rotation: 90 }, 20)).toBe(true);
     });
+  });
+});
+
+// Room 1000 × 800 cm, margin 100 cm. A table 300 × 150 (rotation 0, length along x) may have its
+// center at x 250..750 and y 175..625: its EDGES must stay 100 cm away from every wall.
+describe('isInsideRoom', () => {
+  const room = { widthCm: 1000, lengthCm: 800 };
+  const table = { x: 500, y: 400, lengthCm: 300, widthCm: 150, rotation: 0 };
+
+  it('accepts a table in the middle of the room', () => {
+    expect(isInsideRoom(table, room, 100)).toBe(true);
+  });
+
+  it('accepts a table whose edges touch the margin exactly, on every side', () => {
+    expect(isInsideRoom({ ...table, x: 250 }, room, 100)).toBe(true); // left edge 100
+    expect(isInsideRoom({ ...table, x: 750 }, room, 100)).toBe(true); // right edge 900
+    expect(isInsideRoom({ ...table, y: 175 }, room, 100)).toBe(true); // top edge 100
+    expect(isInsideRoom({ ...table, y: 625 }, room, 100)).toBe(true); // bottom edge 700
+  });
+
+  it('rejects a table 1 cm too close to any wall', () => {
+    expect(isInsideRoom({ ...table, x: 249 }, room, 100)).toBe(false);
+    expect(isInsideRoom({ ...table, x: 751 }, room, 100)).toBe(false);
+    expect(isInsideRoom({ ...table, y: 174 }, room, 100)).toBe(false);
+    expect(isInsideRoom({ ...table, y: 626 }, room, 100)).toBe(false);
+  });
+
+  it('rejects a table that sticks out of the room', () => {
+    expect(isInsideRoom({ ...table, x: 0 }, room, 100)).toBe(false);
+    expect(isInsideRoom({ ...table, x: 5000 }, room, 100)).toBe(false);
+    expect(isInsideRoom({ ...table, y: -50 }, room, 100)).toBe(false);
+  });
+
+  it('uses the rotated footprint: rotation 90 swaps length and width', () => {
+    const turned = { ...table, rotation: 90 }; // 150 along x, 300 along y: x 175..825, y 250..550
+    expect(isInsideRoom({ ...turned, x: 200, y: 400 }, room, 100)).toBe(true); // too close if not rotated
+    expect(isInsideRoom({ ...turned, x: 500, y: 249 }, room, 100)).toBe(false); // fine if not rotated
+    expect(isInsideRoom({ ...turned, x: 500, y: 250 }, room, 100)).toBe(true);
+  });
+
+  it('with margin 0 a table may touch the walls but not cross them', () => {
+    expect(isInsideRoom({ ...table, x: 150, y: 75 }, room, 0)).toBe(true);
+    expect(isInsideRoom({ ...table, x: 149, y: 75 }, room, 0)).toBe(false);
+    expect(isInsideRoom({ ...table, x: 850, y: 725 }, room, 0)).toBe(true);
+    expect(isInsideRoom({ ...table, x: 851, y: 725 }, room, 0)).toBe(false);
   });
 });

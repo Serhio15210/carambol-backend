@@ -4,9 +4,8 @@ import { BilliardTable } from './entities/billiard-table.entity';
 // rotation 0/90/180/270 degrees (with rotation 0 the length lies along the x axis).
 export type TablePlacement = Pick<BilliardTable, 'x' | 'y' | 'lengthCm' | 'widthCm' | 'rotation'>;
 
-// Minimum passage between the edges of two tables: a player needs room to draw the cue back.
-// shortcut: one value for the whole hall, becomes a club setting in lesson 15.
-export const MIN_GAP_CM = 150;
+// A room is a rectangle with its corner at (0, 0): x runs along widthCm, y along lengthCm.
+export type RoomSize = { widthCm: number; lengthCm: number };
 
 // The table's rectangle on the floor. 90° and 270° turn the length across the x axis.
 function edges(t: TablePlacement) {
@@ -33,4 +32,21 @@ export function tablesOverlap(a: TablePlacement, b: TablePlacement, gapCm = 0): 
     ea.bottom + gapCm <= eb.top || // a is above b
     eb.bottom + gapCm <= ea.top; // a is below b
   return !separated;
+}
+
+// True when the table lies fully inside the room and keeps marginCm from every wall
+// (touching the margin exactly is allowed): every table edge must be in [marginCm, size - marginCm].
+export function isInsideRoom(placement: TablePlacement, room: RoomSize, marginCm: number): boolean {
+  const tableEdge = edges(placement);
+
+  return (
+    tableEdge.top >= marginCm &&
+    tableEdge.top <= room.lengthCm - marginCm &&
+    tableEdge.left >= marginCm &&
+    tableEdge.left <= room.widthCm - marginCm &&
+    tableEdge.bottom >= marginCm &&
+    tableEdge.bottom <= room.lengthCm - marginCm &&
+    tableEdge.right >= marginCm &&
+    tableEdge.right <= room.widthCm - marginCm
+  );
 }
