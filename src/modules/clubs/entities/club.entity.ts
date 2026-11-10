@@ -32,6 +32,12 @@ export class Club {
   @Column({ type: 'int', default: 150 })
   minGapCm: number;
 
+  // IANA name (Europe/Kyiv), never an offset like +02:00: only a name knows about daylight saving
+  // time. Opening hours are wall-clock times in THIS zone. The default also lets the migration
+  // add a NOT NULL column to a table that already has rows (no expand/fill/contract needed).
+  @Column({ type: 'varchar', default: 'Europe/Kyiv' })
+  timezone: string;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 
