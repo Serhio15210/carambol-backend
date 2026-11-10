@@ -19,4 +19,8 @@ export enum AuditAction {
   RoomDelete = 'room.delete',
   ClubStaffSet = 'club.staff_set',
   ClubStaffRemove = 'club.staff_remove',
+  ClubHoursSet = 'club.hours_set',
+  ClubHoursRemove = 'club.hours_remove',
+  ClubExceptionSet = 'club.exception_set',
+  ClubExceptionRemove = 'club.exception_remove',
 }
