@@ -40,6 +40,23 @@ describe('AllExceptionsFilter', () => {
     expect(status).toBe(409);
   });
 
+  it.each([
+    ['23503', 'a foreign key violation'],
+    ['23P01', 'an exclusion violation (two bookings overlap)'],
+    ['40P01', 'a deadlock between two simultaneous bookings'],
+  ])('maps %s (%s) to 409', (code) => {
+    const driverError = Object.assign(new Error('conflict'), { code });
+    const { status } = run(new QueryFailedError('INSERT', [], driverError));
+    expect(status).toBe(409);
+  });
+
+  it('does not turn other database errors into 409 (e.g. 23514 check violation stays 500)', () => {
+    jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const driverError = Object.assign(new Error('check'), { code: '23514' });
+    const { status } = run(new QueryFailedError('INSERT', [], driverError));
+    expect(status).toBe(500);
+  });
+
   it('hides unexpected errors behind a generic 500', () => {
     jest.spyOn(Logger.prototype, 'error').mockImplementation();
     const { status, body } = run(new Error('db password is hunter2'));

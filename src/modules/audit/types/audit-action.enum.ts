@@ -23,4 +23,5 @@ export enum AuditAction {
   ClubHoursRemove = 'club.hours_remove',
   ClubExceptionSet = 'club.exception_set',
   ClubExceptionRemove = 'club.exception_remove',
+  OrderCancel = 'order.cancel',
 }

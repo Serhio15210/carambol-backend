@@ -11,6 +11,7 @@ import { AuthModule } from '@/modules/auth/auth.module';
 import { AuditModule } from '@/modules/audit/audit.module';
 import { BilliardTablesModule } from '@/modules/tables/billiard-tables.module';
 import { ClubsModule } from '@/modules/clubs/clubs.module';
+import { OrdersModule } from '@/modules/orders/orders.module';
 
 // Корневой модуль: собирает инфраструктуру (конфиг, БД) и все фича-модули.
 // Новый модуль (например, Tables) подключается одной строкой в imports.
@@ -26,6 +27,7 @@ import { ClubsModule } from '@/modules/clubs/clubs.module';
     UsersModule,
     ClubsModule,
     BilliardTablesModule,
+    OrdersModule,
     AuthModule,
     AuditModule,
   ],

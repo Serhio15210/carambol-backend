@@ -130,3 +130,23 @@ export function isOpenAt(
     (today ? isInInterval(time, today) : false) || (yesterday ? isInTail(time, yesterday) : false)
   );
 }
+
+// Everything needed to answer "is the club open at this instant?", already loaded from the database.
+export type ScheduleData = {
+  timezone: string;
+  hours: WeekdayHours[];
+  exceptions: DateException[];
+};
+
+// instant -> the club's local date, weekday and time -> hours of today and of yesterday
+// (an exception for the date beats the weekday rule) -> isOpenAt. No database access: bookings call
+// it for every slot of a booking with one loaded schedule.
+export function isClubOpenAt({ timezone, hours, exceptions }: ScheduleData, at: Date): boolean {
+  const local = toLocal(at, timezone);
+  const yesterday = previousDate(local.date);
+  return isOpenAt(
+    local.time,
+    effectiveHours(local.date, local.weekday, hours, exceptions),
+    effectiveHours(yesterday, previousWeekday(local.weekday), hours, exceptions),
+  );
+}

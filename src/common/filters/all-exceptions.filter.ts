@@ -13,6 +13,8 @@ import { QueryFailedError } from 'typeorm';
 // PostgreSQL error codes: https://www.postgresql.org/docs/current/errcodes-appendix.html
 const PG_UNIQUE_VIOLATION = '23505';
 const PG_FOREIGN_KEY_VIOLATION = '23503';
+const PG_EXCLUSION_VIOLATION = '23P01';
+const PG_DEADLOCK_DETECTED = '40P01';
 
 type ResolvedError = { status: number; messages: string[] };
 
@@ -63,6 +65,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
         return {
           status: HttpStatus.CONFLICT,
           messages: ['Resource is referenced by other records'],
+        };
+      }
+      // An exclusion constraint refused the row, e.g. two bookings of one table at the same time.
+      if (code === PG_EXCLUSION_VIOLATION) {
+        return {
+          status: HttpStatus.CONFLICT,
+          messages: ['The requested time overlaps with an existing record'],
+        };
+      }
+      // Two requests that insert the SAME slot at the very same moment can wait for each other:
+      // PostgreSQL then aborts one of them with a deadlock error instead of 23P01. For the client
+      // it is the same story ("someone else got there first"), and a retry gives a clear answer.
+      if (code === PG_DEADLOCK_DETECTED) {
+        return {
+          status: HttpStatus.CONFLICT,
+          messages: ['The request conflicted with a concurrent one, please try again'],
         };
       }
     }
