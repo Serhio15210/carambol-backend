@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, LessThanOrEqual, Repository } from 'typeorm';
 import { paginate, PaginatedResponse } from '@/common/types/paginated-response.type';
 import { AuditService } from '@/modules/audit/audit.service';
 import { ClubScheduleService } from '@/modules/clubs/club-schedule.service';
@@ -153,5 +153,17 @@ export class OrdersService {
       await this.audit.record(actor.id, AuditAction.OrderCancel, id, { userId: order.userId });
     }
     return saved;
+  }
+
+  // A booking that is over must stop being "reserved". The job runs by the clock in every copy of
+  // the application, so it must be safe to run twice, even at the same moment: ONE conditional
+  // UPDATE (the status is still reserved and endsAt is not in the future), no find() first. A booking
+  // that ends exactly now is over. Returns how many orders were finished.
+  async finishPastOrders(now = new Date()): Promise<number> {
+    const result = await this.ordersRepository.update(
+      { status: OrderStatus.RESERVED, endsAt: LessThanOrEqual(now) },
+      { status: OrderStatus.FINISHED },
+    );
+    return result.affected ?? 0;
   }
 }

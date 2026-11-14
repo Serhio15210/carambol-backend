@@ -14,6 +14,11 @@ export type AppConfig = {
     accessExpiresIn: string;
     refreshExpiresInDays: number;
   };
+  scheduler: {
+    // false switches the background jobs off (the e2e tests do that: a cron tick in the middle of a
+    // test would change its data).
+    enabled: boolean;
+  };
 };
 
 export const configuration = (): AppConfig => ({
@@ -28,5 +33,8 @@ export const configuration = (): AppConfig => ({
     secret: process.env.JWT_SECRET ?? '',
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
     refreshExpiresInDays: Number(process.env.JWT_REFRESH_EXPIRES_IN_DAYS ?? 30),
+  },
+  scheduler: {
+    enabled: process.env.SCHEDULER_ENABLED !== 'false',
   },
 });

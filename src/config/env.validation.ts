@@ -19,5 +19,11 @@ export const validateEnv = (env: RawEnv): RawEnv => {
     throw new Error('JWT_REFRESH_EXPIRES_IN_DAYS must be a positive integer');
   }
 
+  // A typo like "False" would silently keep the jobs ON, so only the two exact words are accepted.
+  const scheduler = env.SCHEDULER_ENABLED;
+  if (scheduler !== undefined && scheduler !== 'true' && scheduler !== 'false') {
+    throw new Error('SCHEDULER_ENABLED must be "true" or "false"');
+  }
+
   return env;
 };
