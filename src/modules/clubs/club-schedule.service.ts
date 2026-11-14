@@ -9,7 +9,7 @@ import { SetOpeningHoursDto } from './dto/set-opening-hours.dto';
 import { SetScheduleExceptionDto } from './dto/set-schedule-exception.dto';
 import { ClubOpeningHours } from './entities/club-opening-hours.entity';
 import { ClubScheduleException } from './entities/club-schedule-exception.entity';
-import { effectiveHours, isOpenAt, previousDate, previousWeekday, toLocal } from './opening-hours';
+import { isClubOpenAt } from './opening-hours';
 
 export type ClubSchedule = {
   timezone: string;
@@ -105,17 +105,8 @@ export class ClubScheduleService {
     await this.audit.record(actor.id, AuditAction.ClubExceptionRemove, clubId, { date });
   }
 
-  // Is the club open at this INSTANT? Lesson 17 (bookings) will call this.
-  // instant -> the club's local date, weekday and time -> hours of today and of yesterday
-  // (an exception for the date beats the weekday rule) -> isOpenAt.
+  // Is the club open at this INSTANT? One database round trip, then the pure isClubOpenAt.
   async isOpen(clubId: string, at: Date): Promise<boolean> {
-    const { timezone, hours, exceptions } = await this.getSchedule(clubId);
-    const local = toLocal(at, timezone);
-    const yesterday = previousDate(local.date);
-    return isOpenAt(
-      local.time,
-      effectiveHours(local.date, local.weekday, hours, exceptions),
-      effectiveHours(yesterday, previousWeekday(local.weekday), hours, exceptions),
-    );
+    return isClubOpenAt(await this.getSchedule(clubId), at);
   }
 }
