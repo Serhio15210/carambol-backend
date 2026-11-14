@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, LessThanOrEqual, Repository } from 'typeorm';
 import { AuditService } from '@/modules/audit/audit.service';
 import { AuditAction } from '@/modules/audit/types/audit-action.enum';
 import { ClubScheduleService } from '@/modules/clubs/club-schedule.service';
@@ -406,5 +406,46 @@ describe('OrdersService.findMine', () => {
     expect(findAndCount).toHaveBeenCalledWith(
       expect.objectContaining({ where: { status: OrderStatus.RESERVED, userId: 'u1' } }),
     );
+  });
+});
+
+// ---- Lesson 18: finishing the past orders ------------------------------------------------------------
+
+describe('OrdersService.finishPastOrders (your part)', () => {
+  function setupFinish(affected: number | undefined) {
+    const update = jest.fn().mockResolvedValue({ affected });
+    const service = new OrdersService(
+      { update } as unknown as Repository<Order>,
+      {} as DataSource,
+      {} as BilliardTablesService,
+      {} as RoomsService,
+      {} as ClubScheduleService,
+      {} as AuditService,
+    );
+    return { service, update };
+  }
+
+  it('turns the reserved orders that are over into finished with ONE conditional update', async () => {
+    const { service, update } = setupFinish(2);
+
+    await service.finishPastOrders(NOW);
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(
+      { status: OrderStatus.RESERVED, endsAt: LessThanOrEqual(NOW) },
+      { status: OrderStatus.FINISHED },
+    );
+  });
+
+  it('returns how many orders were finished', async () => {
+    const { service } = setupFinish(3);
+
+    await expect(service.finishPastOrders(NOW)).resolves.toBe(3);
+  });
+
+  it('returns 0 when the driver does not report a count', async () => {
+    const { service } = setupFinish(undefined);
+
+    await expect(service.finishPastOrders(NOW)).resolves.toBe(0);
   });
 });

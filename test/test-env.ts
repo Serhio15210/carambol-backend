@@ -14,4 +14,5 @@ export function useTestEnv(): void {
   process.env.DATABASE_URL = TEST_DATABASE_URL;
   process.env.JWT_SECRET ??= 'e2e-test-secret';
   process.env.NODE_ENV = 'test';
+  process.env.SCHEDULER_ENABLED = 'false'; // a cron tick in the middle of a test would change its data
 }

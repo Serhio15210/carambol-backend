@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { configuration } from '@/config/configuration';
 import { validateEnv } from '@/config/env.validation';
 import { DatabaseModule } from '@/database/database.module';
@@ -23,6 +24,8 @@ import { OrdersModule } from '@/modules/orders/orders.module';
       validate: validateEnv,
     }),
     DatabaseModule,
+    // Starts the timers of every @Cron method in the application.
+    ScheduleModule.forRoot(),
     HealthModule,
     UsersModule,
     ClubsModule,
