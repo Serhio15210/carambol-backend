@@ -25,5 +25,28 @@ export const validateEnv = (env: RawEnv): RawEnv => {
     throw new Error('SCHEDULER_ENABLED must be "true" or "false"');
   }
 
+  const secretKey = env.STRIPE_SECRET_KEY;
+  if (secretKey !== undefined && secretKey !== '') {
+    if (typeof secretKey !== 'string' || !secretKey.startsWith('sk_')) {
+      throw new Error('STRIPE_SECRET_KEY must be a Stripe secret key (starts with sk_)');
+    }
+    // A live key outside production would charge REAL money from a developer machine.
+    if (secretKey.startsWith('sk_live_') && env.NODE_ENV !== 'production') {
+      throw new Error('A live Stripe key (sk_live_) is allowed only when NODE_ENV=production');
+    }
+  }
+  const webhookSecret = env.STRIPE_WEBHOOK_SECRET;
+  if (webhookSecret !== undefined && webhookSecret !== '') {
+    if (typeof webhookSecret !== 'string' || !webhookSecret.startsWith('whsec_')) {
+      throw new Error(
+        'STRIPE_WEBHOOK_SECRET must be a webhook signing secret (starts with whsec_)',
+      );
+    }
+  }
+  const paymentWindow = Number(env.PAYMENT_WINDOW_MINUTES ?? 15);
+  if (!Number.isInteger(paymentWindow) || paymentWindow < 1) {
+    throw new Error('PAYMENT_WINDOW_MINUTES must be a positive integer');
+  }
+
   return env;
 };

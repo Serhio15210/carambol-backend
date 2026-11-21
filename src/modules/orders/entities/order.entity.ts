@@ -12,6 +12,7 @@ import {
 // Relations need the classes: Orders points to Tables and Users, never the other way round.
 import { BilliardTable } from '@/modules/tables/entities/billiard-table.entity';
 import { User } from '@/modules/users/entities/user.entity';
+import { Payment } from '../payments/payment.entity';
 import { OrderStatus } from '../types/order-status.enum';
 
 // One row = one table booked for the interval [startsAt, endsAt): half-open, so a booking that ends
@@ -56,6 +57,19 @@ export class Order {
 
   @Column({ type: 'enum', enum: OrderStatus, default: OrderStatus.RESERVED })
   status: OrderStatus;
+
+  // The price of THIS booking at the moment it was made, in cents (the club's rate may change later).
+  @Column({ type: 'int', default: 0 })
+  priceCents: number;
+
+  // The payment that covers this booking; null for a free booking. RESTRICT: money records must
+  // never disappear together with something else.
+  @Column({ type: 'uuid', nullable: true })
+  paymentId: string | null;
+
+  @ManyToOne(() => Payment, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'paymentId' })
+  payment: Payment | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

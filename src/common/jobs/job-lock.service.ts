@@ -3,7 +3,7 @@ import { DataSource } from 'typeorm';
 
 // One number per job. PostgreSQL advisory locks are keyed by a number that only our code gives
 // meaning to: two jobs must never share a key, otherwise they would block each other.
-export const JOB_LOCK_KEYS = { finishPastOrders: 18_001 } as const;
+export const JOB_LOCK_KEYS = { finishPastOrders: 18_001, cancelExpiredUnpaid: 19_001 } as const;
 
 export type LockOutcome<T> = { ran: true; result: T } | { ran: false };
 

@@ -43,6 +43,13 @@ export class CreateClubDto {
   @Max(1000)
   minGapCm?: number;
 
+  // Cents, not a decimal price: 1000 means 10.00. 0 = free (such a booking needs no payment).
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1_000_000)
+  hourlyRateCents?: number;
+
   // IsTimeZone alone also accepts offsets like "+02:00", which know nothing about daylight saving
   // time, so the Matches shape check (Region/City) is needed too.
   // shortcut: letter case is not normalized ("Europe/kyiv" passes); canonicalize if it ever matters.

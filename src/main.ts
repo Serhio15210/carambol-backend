@@ -8,7 +8,9 @@ import { configureApp } from '@/app.setup';
 // Точка входа. Аналог в Express:
 //   const app = express(); app.use(express.json()); app.listen(3000);
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: the signature of a Stripe webhook is checked against the body EXACTLY as it arrived,
+  // so Nest keeps the original bytes in request.rawBody next to the parsed JSON.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   configureApp(app); // prefix, versioning, validation: shared with the e2e tests
 
   // При остановке (Ctrl+C, docker stop) Nest корректно закроет соединения с БД.
