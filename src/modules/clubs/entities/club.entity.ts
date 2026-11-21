@@ -38,6 +38,12 @@ export class Club {
   @Column({ type: 'varchar', default: 'Europe/Kyiv' })
   timezone: string;
 
+  // The price of one hour of one table, in cents (1000 = 10.00 USD). An integer: money is never a float.
+  // The default 1000 also lets the migration add a NOT NULL column to a table that has rows.
+  // shortcut: one rate per club; tariffs and subscriptions (lesson 20) will make it richer.
+  @Column({ type: 'int', default: 1000 })
+  hourlyRateCents: number;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

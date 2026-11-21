@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DataSource, LessThanOrEqual, Repository } from 'typeorm';
 import { AuditService } from '@/modules/audit/audit.service';
 import { AuditAction } from '@/modules/audit/types/audit-action.enum';
@@ -8,6 +9,9 @@ import { BilliardTablesService } from '@/modules/tables/billiard-tables.service'
 import { BilliardTableStatus } from '@/modules/tables/types/table-status.enum';
 import { UserRole } from '@/modules/users/types/user-role.enum';
 import { Order } from './entities/order.entity';
+import { PaymentGateway } from './payments/payment-gateway';
+import { PaymentStatus } from './payments/payment-status.enum';
+import { Payment } from './payments/payment.entity';
 import { OrderStatus } from './types/order-status.enum';
 import { OrdersService } from './orders.service';
 
@@ -29,6 +33,7 @@ const TABLES = {
   tm: { id: 'tm', roomId: 'r1', number: 4, status: BilliardTableStatus.MAINTENANCE },
 } as Record<string, { id: string; roomId: string; number: number; status: BilliardTableStatus }>;
 const CLUB_OF_ROOM: Record<string, string> = { r1: 'c1', r2: 'c2' };
+const RATE_OF_CLUB: Record<string, number> = { c1: 1000, c2: 1500 };
 
 function setup(schedule: object = MONDAY_10_22) {
   const tables = {
@@ -40,7 +45,11 @@ function setup(schedule: object = MONDAY_10_22) {
   };
   const rooms = {
     findRoomWithClub: jest.fn((roomId: string) =>
-      Promise.resolve({ id: roomId, clubId: CLUB_OF_ROOM[roomId] }),
+      Promise.resolve({
+        id: roomId,
+        clubId: CLUB_OF_ROOM[roomId],
+        club: { hourlyRateCents: RATE_OF_CLUB[CLUB_OF_ROOM[roomId]] },
+      }),
     ),
   };
   const schedules = { getSchedule: jest.fn(() => Promise.resolve(schedule)) };
@@ -51,6 +60,9 @@ function setup(schedule: object = MONDAY_10_22) {
     rooms as unknown as RoomsService,
     schedules as unknown as ClubScheduleService,
     {} as AuditService,
+    {} as Repository<Payment>,
+    {} as PaymentGateway,
+    {} as ConfigService,
   );
   return { service, tables, rooms, schedules };
 }
@@ -62,10 +74,10 @@ const request = (tableIds: string[], from = '2030-01-07T12:00', to = '2030-01-07
 });
 
 describe('OrdersService.assertBookable (your part)', () => {
-  it('accepts a good request for several tables and loads the club schedule only once', async () => {
+  it('accepts a good request for several tables, loads the schedule once and returns the club rate', async () => {
     const { service, schedules } = setup();
 
-    await expect(service.assertBookable(request(['t1', 't2']), NOW)).resolves.toBeUndefined();
+    await expect(service.assertBookable(request(['t1', 't2']), NOW)).resolves.toBe(1000);
 
     expect(schedules.getSchedule).toHaveBeenCalledTimes(1);
     expect(schedules.getSchedule).toHaveBeenCalledWith('c1');
@@ -143,7 +155,7 @@ describe('OrdersService.assertBookable (your part)', () => {
 // "committed" only when the callback finishes; if it throws, they vanish (ROLLBACK).
 // The manager understands manager.create / manager.save / manager.getRepository(...).create|save,
 // with or without the entity class as the first argument.
-type Row = { userId: string; tableId: string };
+type Row = { id?: string; userId: string; tableId?: string; [key: string]: unknown };
 type Save = (...args: unknown[]) => Promise<unknown>;
 type FakeManager = {
   create: (target: unknown, data: object) => object;
@@ -154,6 +166,7 @@ type FakeManager = {
 class FakeDataSource {
   committed: Row[] = [];
   transactions = 0;
+  nextId = 0;
   conflictingTables = new Set<string>(); // saving one of these fails, like the exclusion constraint
 
   transaction = async <T>(work: (manager: FakeManager) => Promise<T>): Promise<T> => {
@@ -161,9 +174,10 @@ class FakeDataSource {
     const pending: Row[] = [];
     const save: Save = (...args) => {
       const row = args[args.length - 1] as Row;
-      if (this.conflictingTables.has(row.tableId)) {
+      if (row.tableId && this.conflictingTables.has(row.tableId)) {
         return Promise.reject(new Error('conflicting key value violates exclusion constraint'));
       }
+      row.id ??= `row-${(this.nextId += 1)}`;
       pending.push(row);
       return Promise.resolve(row);
     };
@@ -181,6 +195,7 @@ class FakeDataSource {
 
 describe('OrdersService.saveAll (your part)', () => {
   const when = { startsAt: kyiv('2030-01-07T12:00'), endsAt: kyiv('2030-01-07T14:00') };
+  const FREE = { priceCents: 0, currency: 'usd', expiresAt: kyiv('2030-01-01T00:15') };
 
   function setupSave() {
     const db = new FakeDataSource();
@@ -198,6 +213,9 @@ describe('OrdersService.saveAll (your part)', () => {
       {} as RoomsService,
       {} as ClubScheduleService,
       {} as AuditService,
+      {} as Repository<Payment>,
+      {} as PaymentGateway,
+      {} as ConfigService,
     );
     return { service, db };
   }
@@ -205,7 +223,7 @@ describe('OrdersService.saveAll (your part)', () => {
   it('books every table in ONE transaction and returns one order per table', async () => {
     const { service, db } = setupSave();
 
-    const created = await service.saveAll('u1', { tableIds: ['t1', 't2'], ...when });
+    const created = await service.saveAll('u1', { tableIds: ['t1', 't2'], ...when }, FREE);
 
     expect(db.transactions).toBe(1);
     expect(created).toHaveLength(2);
@@ -218,7 +236,7 @@ describe('OrdersService.saveAll (your part)', () => {
   it('takes the tables in sorted order, whatever the order of the request (no deadlocks)', async () => {
     const { service, db } = setupSave();
 
-    await service.saveAll('u1', { tableIds: ['t3', 't1', 't2'], ...when });
+    await service.saveAll('u1', { tableIds: ['t3', 't1', 't2'], ...when }, FREE);
 
     expect(db.committed.map((row) => row.tableId)).toEqual(['t1', 't2', 't3']);
   });
@@ -227,7 +245,7 @@ describe('OrdersService.saveAll (your part)', () => {
     const { service } = setupSave();
     const tableIds = ['t3', 't1', 't2'];
 
-    await service.saveAll('u1', { tableIds, ...when });
+    await service.saveAll('u1', { tableIds, ...when }, FREE);
 
     expect(tableIds).toEqual(['t3', 't1', 't2']);
   });
@@ -236,11 +254,74 @@ describe('OrdersService.saveAll (your part)', () => {
     const { service, db } = setupSave();
     db.conflictingTables.add('t2');
 
-    await expect(service.saveAll('u1', { tableIds: ['t1', 't2', 't3'], ...when })).rejects.toThrow(
+    await expect(
+      service.saveAll('u1', { tableIds: ['t1', 't2', 't3'], ...when }, FREE),
+    ).rejects.toThrow('exclusion constraint');
+
+    expect(db.committed).toEqual([]); // t1 was saved before t2 failed, and it was rolled back
+  });
+
+  // ---- lesson 19: a booking that has to be paid ----
+  const PAID = { priceCents: 2000, currency: 'usd', expiresAt: kyiv('2029-12-01T10:15') };
+  const isPayment = (row: Row) => 'amountCents' in row;
+
+  it('a paid booking: ONE pending payment for all tables, saved BEFORE the orders', async () => {
+    const { service, db } = setupSave();
+
+    await service.saveAll('u1', { tableIds: ['t1', 't2'], ...when }, PAID);
+
+    expect(db.transactions).toBe(1);
+    expect(db.committed.filter(isPayment)).toHaveLength(1);
+    expect(isPayment(db.committed[0])).toBe(true); // the orders point at it, so it comes first
+    const payment = db.committed[0];
+    expect(payment).toMatchObject({
+      userId: 'u1',
+      amountCents: 4000, // 2000 per table, two tables
+      currency: 'usd',
+      expiresAt: PAID.expiresAt,
+      status: PaymentStatus.PENDING,
+    });
+  });
+
+  it('a paid booking: every order is pending, points at the payment and keeps its own price', async () => {
+    const { service, db } = setupSave();
+
+    const created = await service.saveAll('u1', { tableIds: ['t2', 't1'], ...when }, PAID);
+
+    const payment = db.committed.find(isPayment)!;
+    const orders = db.committed.filter((row) => !isPayment(row));
+    expect(orders.map((order) => order.tableId)).toEqual(['t1', 't2']);
+    for (const order of orders) {
+      expect(order).toMatchObject({
+        userId: 'u1',
+        status: OrderStatus.PENDING,
+        paymentId: payment.id,
+        priceCents: 2000,
+      });
+    }
+    expect(created).toHaveLength(2); // the caller gets the orders, not the payment
+    expect(created.every((order) => order.paymentId === payment.id)).toBe(true);
+  });
+
+  it('a free booking: no payment at all, the orders are not pending', async () => {
+    const { service, db } = setupSave();
+
+    await service.saveAll('u1', { tableIds: ['t1'], ...when }, FREE);
+
+    expect(db.committed.filter(isPayment)).toEqual([]);
+    expect(db.committed[0].status).not.toBe(OrderStatus.PENDING);
+    expect(db.committed[0].paymentId ?? null).toBeNull();
+  });
+
+  it('all or nothing for money too: when a table conflicts, the payment is rolled back with the orders', async () => {
+    const { service, db } = setupSave();
+    db.conflictingTables.add('t2');
+
+    await expect(service.saveAll('u1', { tableIds: ['t1', 't2'], ...when }, PAID)).rejects.toThrow(
       'exclusion constraint',
     );
 
-    expect(db.committed).toEqual([]); // t1 was saved before t2 failed, and it was rolled back
+    expect(db.committed).toEqual([]);
   });
 });
 
@@ -265,7 +346,18 @@ function setupOrders(findAndCount = jest.fn()) {
     findOneBy: jest.fn(({ id }: { id: string }) =>
       Promise.resolve(rows.find((row) => row.id === id) ?? null),
     ),
-    save: jest.fn((order: Order) => Promise.resolve(order)),
+    save: jest.fn((order: Order) => {
+      Object.assign(rows.find((row) => row.id === order.id) ?? {}, order);
+      return Promise.resolve(order);
+    }),
+    // A conditional UPDATE like the database does it: only rows matching EVERY field of `where`.
+    update: jest.fn((where: Partial<Order>, set: Partial<Order>) => {
+      const matched = rows.filter((row) =>
+        Object.entries(where).every(([key, value]) => row[key as keyof Order] === value),
+      );
+      matched.forEach((row) => Object.assign(row, set));
+      return Promise.resolve({ affected: matched.length });
+    }),
     findAndCount,
   };
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
@@ -276,44 +368,45 @@ function setupOrders(findAndCount = jest.fn()) {
     {} as RoomsService,
     {} as ClubScheduleService,
     audit as unknown as AuditService,
+    {} as Repository<Payment>,
+    {} as PaymentGateway,
+    {} as ConfigService,
   );
-  return { service, repo, audit };
+  return { service, repo, audit, rows };
 }
 
 describe('OrdersService.cancel (your part)', () => {
   it('the owner cancels a reserved booking that has not started: it becomes cancelled, no audit entry', async () => {
-    const { service, repo, audit } = setupOrders();
+    const { service, audit, rows } = setupOrders();
 
     const cancelled = await service.cancel(USER1, 'o1', NOW);
 
     expect(cancelled.status).toBe(OrderStatus.CANCELLED);
-    expect(repo.save).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'o1', status: OrderStatus.CANCELLED }),
-    );
+    expect(rows.find((row) => row.id === 'o1')?.status).toBe(OrderStatus.CANCELLED);
     expect(audit.record).not.toHaveBeenCalled();
   });
 
   it('a booking of somebody else looks exactly like a missing one: 404, nothing saved', async () => {
-    const { service, repo } = setupOrders();
+    const { service, rows } = setupOrders();
 
     await expect(service.cancel(USER1, 'o2', NOW)).rejects.toBeInstanceOf(NotFoundException);
     await expect(service.cancel(USER1, 'ghost', NOW)).rejects.toBeInstanceOf(NotFoundException);
-    expect(repo.save).not.toHaveBeenCalled();
+    expect(rows.map((row) => row.status)).toEqual(ORDERS.map((order) => order.status));
   });
 
   it('only a reserved booking can be cancelled: cancelled and finished ones give 409', async () => {
-    const { service, repo } = setupOrders();
+    const { service, rows } = setupOrders();
 
     await expect(service.cancel(USER1, 'o3', NOW)).rejects.toBeInstanceOf(ConflictException);
     await expect(service.cancel(USER1, 'o4', NOW)).rejects.toBeInstanceOf(ConflictException);
-    expect(repo.save).not.toHaveBeenCalled();
+    expect(rows.map((row) => row.status)).toEqual(ORDERS.map((order) => order.status));
   });
 
   it('a regular user cannot cancel a booking that has already started (409)', async () => {
-    const { service, repo } = setupOrders();
+    const { service, rows } = setupOrders();
 
     await expect(service.cancel(USER1, 'o5', NOW)).rejects.toBeInstanceOf(ConflictException);
-    expect(repo.save).not.toHaveBeenCalled();
+    expect(rows.map((row) => row.status)).toEqual(ORDERS.map((order) => order.status));
   });
 
   it('an admin cancels a booking of another user and the action is written to the audit journal', async () => {
@@ -421,6 +514,9 @@ describe('OrdersService.finishPastOrders (your part)', () => {
       {} as RoomsService,
       {} as ClubScheduleService,
       {} as AuditService,
+      {} as Repository<Payment>,
+      {} as PaymentGateway,
+      {} as ConfigService,
     );
     return { service, update };
   }

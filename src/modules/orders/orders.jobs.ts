@@ -26,6 +26,28 @@ export class OrdersJobs {
     await this.finishPastOrders();
   }
 
+  // The second job: unpaid bookings whose payment window is over give their tables back.
+  @Cron(CronExpression.EVERY_MINUTE, { name: 'cancel-expired-unpaid', waitForCompletion: true })
+  async tickExpiry(): Promise<void> {
+    if (!this.config.getOrThrow<boolean>('scheduler.enabled')) {
+      return;
+    }
+    await this.cancelExpiredUnpaid();
+  }
+
+  async cancelExpiredUnpaid(now = new Date()): Promise<void> {
+    const outcome = await this.locks.runExclusive(JOB_LOCK_KEYS.cancelExpiredUnpaid, () =>
+      this.orders.cancelExpiredUnpaid(now),
+    );
+    if (!outcome.ran) {
+      this.logger.debug(
+        'cancelExpiredUnpaid skipped: another copy of the application is running it',
+      );
+    } else if (outcome.result > 0) {
+      this.logger.log(`Expired ${outcome.result} unpaid payment(s)`);
+    }
+  }
+
   // The job itself, without the clock and the switch: tests and a manual run call it directly.
   async finishPastOrders(now = new Date()): Promise<void> {
     const outcome = await this.locks.runExclusive(JOB_LOCK_KEYS.finishPastOrders, () =>

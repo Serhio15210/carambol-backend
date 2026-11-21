@@ -36,12 +36,14 @@ describe('Orders: booking tables (e2e)', () => {
     });
 
   // A club with one room and `count` tables (300 x 150 cm, far enough apart), open on Mondays.
+  // The club is FREE (rate 0): these tests are about booking rules; paying is in orders-payment.e2e-spec.
   const createClubWithTables = async (name: string, count: number, withHours = true) => {
     const club = await adminPost('/api/v1/admin/clubs', {
       name,
       address: 'Kyiv',
       lat: 50.45,
       lng: 30.52,
+      hourlyRateCents: 0,
     });
     if (withHours) {
       await api(app)
@@ -90,7 +92,7 @@ describe('Orders: booking tables (e2e)', () => {
   it('creates one order per table for the user from the token (201)', async () => {
     const res = await book([tableA, tableB], at('12:00'), at('14:00')).expect(201);
 
-    const body = res.body as OrderBody[];
+    const body = (res.body as { orders: OrderBody[] }).orders;
     expect(body).toHaveLength(2);
     expect(body.map((order) => order.tableId).sort()).toEqual([tableA, tableB].sort());
     expect(body.every((order) => order.userId === player.user.id)).toBe(true);
@@ -220,7 +222,8 @@ describe('Orders: booking tables (e2e)', () => {
   const cancel = (id: string, token = player.accessToken) =>
     api(app).patch(`/api/v1/orders/${id}/cancel`).set('Authorization', `Bearer ${token}`);
   const bookOne = async (tableId: string, from: string, to: string, token = player.accessToken) =>
-    ((await book([tableId], at(from), at(to), token).expect(201)).body as OrderBody[])[0];
+    ((await book([tableId], at(from), at(to), token).expect(201)).body as { orders: OrderBody[] })
+      .orders[0];
 
   describe('my bookings', () => {
     it('lists only my own bookings, the latest start first, with the paging meta', async () => {
@@ -287,6 +290,33 @@ describe('Orders: booking tables (e2e)', () => {
       await cancel(order.id).expect(200);
 
       await cancel(order.id).expect(409);
+    });
+
+    it('two simultaneous cancellations of one booking: exactly one 200, the other 409', async () => {
+      const order = await bookOne(tableA, '12:00', '14:00');
+
+      const statuses = await Promise.all([
+        cancel(order.id).then((res) => res.status),
+        cancel(order.id).then((res) => res.status),
+      ]);
+
+      expect(statuses.sort()).toEqual([200, 409]);
+    });
+
+    it('two simultaneous cancellations by admins write ONE audit entry', async () => {
+      const order = await bookOne(tableA, '12:00', '14:00');
+      const audits = async () =>
+        Number(
+          (
+            await app
+              .get(DataSource)
+              .query(`SELECT count(*) AS n FROM audit_logs WHERE action = 'order.cancel'`)
+          )[0].n,
+        );
+
+      await Promise.all([cancel(order.id, adminToken), cancel(order.id, adminToken)]);
+
+      expect(await audits()).toBe(1);
     });
 
     it('a booking of somebody else is 404, exactly like a missing one, and stays untouched', async () => {

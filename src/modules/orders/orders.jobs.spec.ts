@@ -5,7 +5,10 @@ import { OrdersService } from './orders.service';
 
 function setup({ enabled, lockGranted }: { enabled: boolean; lockGranted: boolean }) {
   const config = { getOrThrow: jest.fn().mockReturnValue(enabled) };
-  const orders = { finishPastOrders: jest.fn().mockResolvedValue(3) };
+  const orders = {
+    finishPastOrders: jest.fn().mockResolvedValue(3),
+    cancelExpiredUnpaid: jest.fn().mockResolvedValue(2),
+  };
   const locks = {
     runExclusive: jest.fn(async (_key: number, work: () => Promise<number>) =>
       lockGranted ? { ran: true, result: await work() } : { ran: false },
@@ -56,5 +59,28 @@ describe('OrdersJobs', () => {
     await jobs.finishPastOrders(now);
 
     expect(orders.finishPastOrders).toHaveBeenCalledWith(now);
+  });
+
+  it('the expiry tick goes through ITS OWN lock key and passes its "now" on', async () => {
+    const { jobs, orders, locks } = setup({ enabled: true, lockGranted: true });
+    const now = new Date('2030-01-07T10:00:00Z');
+
+    await jobs.cancelExpiredUnpaid(now);
+
+    expect(locks.runExclusive).toHaveBeenCalledWith(
+      JOB_LOCK_KEYS.cancelExpiredUnpaid,
+      expect.any(Function),
+    );
+    expect(orders.cancelExpiredUnpaid).toHaveBeenCalledWith(now);
+    expect(JOB_LOCK_KEYS.cancelExpiredUnpaid).not.toBe(JOB_LOCK_KEYS.finishPastOrders);
+  });
+
+  it('with SCHEDULER_ENABLED=false the expiry tick does nothing', async () => {
+    const { jobs, orders, locks } = setup({ enabled: false, lockGranted: true });
+
+    await jobs.tickExpiry();
+
+    expect(locks.runExclusive).not.toHaveBeenCalled();
+    expect(orders.cancelExpiredUnpaid).not.toHaveBeenCalled();
   });
 });

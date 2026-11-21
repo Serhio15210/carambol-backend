@@ -15,7 +15,7 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   // POST /api/v1/orders  { "tableIds": ["..."], "startsAt": "2030-01-07T12:00:00+02:00", "endsAt": "...T14:00:00+02:00" }
-  // -> 201 [ one order per table ]
+  // -> 201 { orders: [ one order per table ], payment: { id, amountCents, currency, expiresAt, clientSecret } | null }
   @Post()
   create(@CurrentUser() user: RequestUser, @Body() dto: CreateOrderDto) {
     return this.ordersService.create(user.id, dto);

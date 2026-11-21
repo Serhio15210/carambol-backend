@@ -15,4 +15,8 @@ export function useTestEnv(): void {
   process.env.JWT_SECRET ??= 'e2e-test-secret';
   process.env.NODE_ENV = 'test';
   process.env.SCHEDULER_ENABLED = 'false'; // a cron tick in the middle of a test would change its data
+  // The tests never talk to Stripe: the secret key is emptied (a real test key from .env must not
+  // leak in), and the webhook secret is a fixed fake one that the tests sign their webhooks with.
+  process.env.STRIPE_SECRET_KEY = '';
+  process.env.STRIPE_WEBHOOK_SECRET = 'whsec_e2e_test_secret';
 }

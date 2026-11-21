@@ -5,12 +5,21 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '@/app.module';
 import { configureApp } from '@/app.setup';
 import { ensureSuperadmin } from '@/database/seeds/superadmin.seed';
+import { PAYMENT_GATEWAY, PaymentGateway } from '@/modules/orders/payments/payment-gateway';
 import { User } from '@/modules/users/entities/user.entity';
 
 // The real app: the same modules as production and the same setup as main.ts (configureApp).
-export async function createTestApp(): Promise<INestApplication> {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-  const app = moduleRef.createNestApplication();
+// Pass a payment gateway to replace Stripe (the tests never call the real one).
+export async function createTestApp(
+  options: { paymentGateway?: PaymentGateway } = {},
+): Promise<INestApplication> {
+  let builder = Test.createTestingModule({ imports: [AppModule] });
+  if (options.paymentGateway) {
+    builder = builder.overrideProvider(PAYMENT_GATEWAY).useValue(options.paymentGateway);
+  }
+  const moduleRef = await builder.compile();
+  // rawBody: true, like main.ts: webhook signatures are checked against the original bytes.
+  const app = moduleRef.createNestApplication({ rawBody: true });
   configureApp(app);
   await app.init(); // no listen(): supertest talks to the server in memory
   return app;

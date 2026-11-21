@@ -19,6 +19,15 @@ export type AppConfig = {
     // test would change its data).
     enabled: boolean;
   };
+  stripe: {
+    // Both are empty until the developer fills them in .env: the app starts anyway, only paying needs them.
+    secretKey: string;
+    webhookSecret: string;
+    // shortcut: one currency for the whole app; make it a club setting when clubs in other countries appear.
+    currency: string;
+    // How long a pending booking waits for the payment before the cron job cancels it.
+    paymentWindowMinutes: number;
+  };
 };
 
 export const configuration = (): AppConfig => ({
@@ -36,5 +45,11 @@ export const configuration = (): AppConfig => ({
   },
   scheduler: {
     enabled: process.env.SCHEDULER_ENABLED !== 'false',
+  },
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY ?? '',
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+    currency: 'usd',
+    paymentWindowMinutes: Number(process.env.PAYMENT_WINDOW_MINUTES ?? 15),
   },
 });
