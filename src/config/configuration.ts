@@ -27,6 +27,11 @@ export type AppConfig = {
     currency: string;
     // How long a pending booking waits for the payment before the cron job cancels it.
     paymentWindowMinutes: number;
+    // The monthly membership price created once at Stripe (price_...). Empty = memberships are not on sale.
+    membershipPriceId: string;
+    // Where the Stripe Checkout page sends the customer back (success or "back" button).
+    // shortcut: one placeholder page; point it at the real frontend when there is one.
+    checkoutReturnUrl: string;
   };
 };
 
@@ -51,5 +56,7 @@ export const configuration = (): AppConfig => ({
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
     currency: 'usd',
     paymentWindowMinutes: Number(process.env.PAYMENT_WINDOW_MINUTES ?? 15),
+    membershipPriceId: process.env.STRIPE_MEMBERSHIP_PRICE_ID ?? '',
+    checkoutReturnUrl: process.env.CHECKOUT_RETURN_URL ?? 'https://example.com/membership',
   },
 });

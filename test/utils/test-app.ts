@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 import { AppModule } from '@/app.module';
 import { configureApp } from '@/app.setup';
 import { ensureSuperadmin } from '@/database/seeds/superadmin.seed';
-import { PAYMENT_GATEWAY, PaymentGateway } from '@/modules/orders/payments/payment-gateway';
+import { PAYMENT_GATEWAY, PaymentGateway } from '@/modules/payments/payment-gateway';
 import { User } from '@/modules/users/entities/user.entity';
 
 // The real app: the same modules as production and the same setup as main.ts (configureApp).

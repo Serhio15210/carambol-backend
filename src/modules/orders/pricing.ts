@@ -8,3 +8,9 @@ export function priceCents(hourlyRateCents: number, startsAt: Date, endsAt: Date
   const minutes = (endsAt.getTime() - startsAt.getTime()) / 60_000;
   return Math.round((hourlyRateCents * minutes) / 60);
 }
+
+// A price after a discount of `percent` (0..100), rounded to a whole cent. Multiply first, divide last:
+// integers stay exact. Example: 1500 cents, 20% off -> 1200; 999 cents, 20% off -> 799 (799.2 rounded).
+export function applyDiscount(cents: number, percent: number): number {
+  return Math.round((cents * (100 - percent)) / 100);
+}

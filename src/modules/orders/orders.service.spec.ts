@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DataSource, LessThanOrEqual, Repository } from 'typeorm';
+import { MembershipsService } from '@/modules/memberships/memberships.service';
 import { AuditService } from '@/modules/audit/audit.service';
 import { AuditAction } from '@/modules/audit/types/audit-action.enum';
 import { ClubScheduleService } from '@/modules/clubs/club-schedule.service';
@@ -9,7 +10,7 @@ import { BilliardTablesService } from '@/modules/tables/billiard-tables.service'
 import { BilliardTableStatus } from '@/modules/tables/types/table-status.enum';
 import { UserRole } from '@/modules/users/types/user-role.enum';
 import { Order } from './entities/order.entity';
-import { PaymentGateway } from './payments/payment-gateway';
+import { PaymentGateway } from '@/modules/payments/payment-gateway';
 import { PaymentStatus } from './payments/payment-status.enum';
 import { Payment } from './payments/payment.entity';
 import { OrderStatus } from './types/order-status.enum';
@@ -63,6 +64,7 @@ function setup(schedule: object = MONDAY_10_22) {
     {} as Repository<Payment>,
     {} as PaymentGateway,
     {} as ConfigService,
+    {} as MembershipsService,
   );
   return { service, tables, rooms, schedules };
 }
@@ -216,6 +218,7 @@ describe('OrdersService.saveAll (your part)', () => {
       {} as Repository<Payment>,
       {} as PaymentGateway,
       {} as ConfigService,
+      {} as MembershipsService,
     );
     return { service, db };
   }
@@ -371,6 +374,7 @@ function setupOrders(findAndCount = jest.fn()) {
     {} as Repository<Payment>,
     {} as PaymentGateway,
     {} as ConfigService,
+    {} as MembershipsService,
   );
   return { service, repo, audit, rows };
 }
@@ -517,6 +521,7 @@ describe('OrdersService.finishPastOrders (your part)', () => {
       {} as Repository<Payment>,
       {} as PaymentGateway,
       {} as ConfigService,
+      {} as MembershipsService,
     );
     return { service, update };
   }

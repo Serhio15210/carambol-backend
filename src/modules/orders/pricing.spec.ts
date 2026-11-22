@@ -1,4 +1,4 @@
-import { MIN_CHARGE_CENTS, priceCents } from './pricing';
+import { applyDiscount, MIN_CHARGE_CENTS, priceCents } from './pricing';
 
 const at = (iso: string) => new Date(iso);
 
@@ -29,5 +29,18 @@ describe('priceCents', () => {
     expect(
       priceCents(1000, at('2030-01-07T10:00:00Z'), at('2030-01-07T10:30:00Z')),
     ).toBeGreaterThanOrEqual(MIN_CHARGE_CENTS);
+  });
+});
+
+describe('applyDiscount', () => {
+  it.each([
+    [2000, 20, 1600],
+    [1500, 20, 1200],
+    [999, 20, 799], // 799.2 -> a whole cent
+    [1000, 0, 1000], // no membership
+    [1000, 100, 0],
+    [0, 20, 0], // a free club stays free
+  ])('%i cents, %i%% off -> %i', (cents, percent, expected) => {
+    expect(applyDiscount(cents, percent)).toBe(expected);
   });
 });

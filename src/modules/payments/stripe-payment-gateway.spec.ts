@@ -23,7 +23,47 @@ describe('StripePaymentGateway.verifyWebhook', () => {
       id: 'evt_1',
       type: 'payment_intent.succeeded',
       paymentIntentId: 'pi_1',
+      subscriptionId: null,
+      referenceId: null,
     });
+  });
+
+  it('reads our id (client_reference_id) from a checkout session event only', () => {
+    const expired = event('checkout.session.expired', {
+      id: 'cs_1',
+      object: 'checkout.session',
+      client_reference_id: 'm-1',
+      subscription: null,
+    });
+
+    expect(verify(expired, sign(expired))).toMatchObject({
+      referenceId: 'm-1',
+      subscriptionId: null,
+    });
+    expect(verify(body, sign(body)).referenceId).toBeNull();
+  });
+
+  it('finds the subscription in subscription, checkout session and invoice events', () => {
+    const subscription = event('customer.subscription.updated', {
+      id: 'sub_1',
+      object: 'subscription',
+    });
+    const session = event('checkout.session.completed', {
+      id: 'cs_1',
+      object: 'checkout.session',
+      subscription: 'sub_2',
+    });
+    const invoice = event('invoice.paid', {
+      id: 'in_1',
+      object: 'invoice',
+      parent: { type: 'subscription_details', subscription_details: { subscription: 'sub_3' } },
+    });
+    const oneOff = event('invoice.paid', { id: 'in_2', object: 'invoice', parent: null });
+
+    expect(verify(subscription, sign(subscription)).subscriptionId).toBe('sub_1');
+    expect(verify(session, sign(session)).subscriptionId).toBe('sub_2');
+    expect(verify(invoice, sign(invoice)).subscriptionId).toBe('sub_3');
+    expect(verify(oneOff, sign(oneOff)).subscriptionId).toBeNull();
   });
 
   it('finds the payment intent of a charge event (a refund points to it)', () => {
