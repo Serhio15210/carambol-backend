@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, LessThanOrEqual, Repository } from 'typeorm';
 import { paginate, PaginatedResponse } from '@/common/types/paginated-response.type';
+import { MembershipsService } from '@/modules/memberships/memberships.service';
 import { AuditService } from '@/modules/audit/audit.service';
 import { ClubScheduleService } from '@/modules/clubs/club-schedule.service';
 import { RoomsService } from '@/modules/clubs/rooms.service';
@@ -22,9 +23,9 @@ import { Order } from './entities/order.entity';
 import { BilliardTableStatus } from '@/modules/tables/types/table-status.enum';
 import { bookingTimeProblem, isInsideWorkingHours } from '@/modules/orders/booking-rules';
 import { OrderStatus } from '@/modules/orders/types/order-status.enum';
-import { PAYMENT_GATEWAY, PaymentGateway } from './payments/payment-gateway';
+import { PAYMENT_GATEWAY, PaymentGateway } from '@/modules/payments/payment-gateway';
 import { Payment } from './payments/payment.entity';
-import { MIN_CHARGE_CENTS, priceCents } from './pricing';
+import { applyDiscount, MIN_CHARGE_CENTS, priceCents } from './pricing';
 import { UserRole } from '@/modules/users/types/user-role.enum';
 import { AuditAction } from '@/modules/audit/types/audit-action.enum';
 import { PaymentStatus } from '@/modules/orders/payments/payment-status.enum';
@@ -66,6 +67,7 @@ export class OrdersService {
     @InjectRepository(Payment) private readonly paymentsRepository: Repository<Payment>,
     @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway,
     private readonly config: ConfigService,
+    private readonly memberships: MembershipsService,
   ) {}
 
   // One order per table, all or nothing. `now` is a parameter so tests can pick any "today".
@@ -79,7 +81,14 @@ export class OrdersService {
       endsAt: new Date(dto.endsAt),
     };
     const hourlyRateCents = await this.assertBookable(request, now);
-    const price = priceCents(hourlyRateCents, request.startsAt, request.endsAt);
+    // A member pays less. One price for everything below: the minimum check, the payment and the
+    // order rows (a refund later returns exactly this amount).
+    const discount = await this.memberships.discountPercentFor(userId);
+    const price = applyDiscount(
+      priceCents(hourlyRateCents, request.startsAt, request.endsAt),
+      discount,
+    );
+
     const total = price * request.tableIds.length;
     // Stripe cannot charge 1-49 cents: that is a club setting to fix, not an amount to round away.
     if (total > 0 && total < MIN_CHARGE_CENTS) {

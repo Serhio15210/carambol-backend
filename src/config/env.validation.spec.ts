@@ -35,6 +35,13 @@ describe('validateEnv: payments', () => {
     ).not.toThrow();
   });
 
+  it('the membership price must be a price id, not a product id', () => {
+    expect(() => validateEnv({ ...base, STRIPE_MEMBERSHIP_PRICE_ID: 'price_123' })).not.toThrow();
+    expect(() => validateEnv({ ...base, STRIPE_MEMBERSHIP_PRICE_ID: 'prod_123' })).toThrow(
+      'price_',
+    );
+  });
+
   it('the payment window must be a positive whole number of minutes', () => {
     expect(() => validateEnv({ ...base, PAYMENT_WINDOW_MINUTES: '15' })).not.toThrow();
     expect(() => validateEnv({ ...base, PAYMENT_WINDOW_MINUTES: '0' })).toThrow(
