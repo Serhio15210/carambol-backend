@@ -39,6 +39,6 @@ import { RoomsService } from './rooms.service';
   providers: [ClubsService, RoomsService, ClubStaffService, ClubScheduleService],
   // Tables will import ClubsModule (a table needs its room and club), never the other way round.
   // Orders (lesson 17) will use ClubScheduleService to ask whether a club is open.
-  exports: [ClubsService, RoomsService, ClubScheduleService],
+  exports: [ClubsService, RoomsService, ClubScheduleService, ClubStaffService],
 })
 export class ClubsModule {}

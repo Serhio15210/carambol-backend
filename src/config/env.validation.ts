@@ -43,13 +43,6 @@ export const validateEnv = (env: RawEnv): RawEnv => {
       );
     }
   }
-  const priceId = env.STRIPE_MEMBERSHIP_PRICE_ID;
-  if (priceId !== undefined && priceId !== '') {
-    // A product id (prod_...) pasted instead of its price is the usual mistake.
-    if (typeof priceId !== 'string' || !priceId.startsWith('price_')) {
-      throw new Error('STRIPE_MEMBERSHIP_PRICE_ID must be a Stripe price id (starts with price_)');
-    }
-  }
   const paymentWindow = Number(env.PAYMENT_WINDOW_MINUTES ?? 15);
   if (!Number.isInteger(paymentWindow) || paymentWindow < 1) {
     throw new Error('PAYMENT_WINDOW_MINUTES must be a positive integer');

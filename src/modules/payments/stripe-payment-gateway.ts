@@ -55,23 +55,36 @@ export class StripePaymentGateway implements PaymentGateway {
     );
   }
 
+  async createPlanPrice(input: {
+    name: string;
+    priceCents: number;
+    currency: string;
+    idempotencyKey: string;
+  }): Promise<{ priceId: string }> {
+    const price = await this.stripe.prices.create(
+      {
+        currency: input.currency,
+        unit_amount: input.priceCents,
+        recurring: { interval: 'month' },
+        product_data: { name: input.name }, // the Product is created in the same call
+      },
+      { idempotencyKey: input.idempotencyKey },
+    );
+    return { priceId: price.id };
+  }
+
   async createSubscriptionCheckout(input: {
+    priceId: string;
     referenceId: string;
     idempotencyKey: string;
   }): Promise<{ id: string; url: string }> {
-    const priceId = this.config.get<string>('stripe.membershipPriceId');
-    if (!priceId) {
-      throw new ServiceUnavailableException(
-        'Memberships are not configured (STRIPE_MEMBERSHIP_PRICE_ID)',
-      );
-    }
     const returnUrl = this.config.getOrThrow<string>('stripe.checkoutReturnUrl');
     // In subscription mode Checkout always creates a Customer (a subscription needs one to charge
     // every month), so we do not create it ourselves.
     const session = await this.stripe.checkout.sessions.create(
       {
         mode: 'subscription',
-        line_items: [{ price: priceId, quantity: 1 }],
+        line_items: [{ price: input.priceId, quantity: 1 }],
         client_reference_id: input.referenceId,
         subscription_data: { metadata: { membershipId: input.referenceId } },
         // An abandoned page keeps our row pending (and blocks a new purchase) until it expires:

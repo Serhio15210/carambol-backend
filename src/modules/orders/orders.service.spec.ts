@@ -79,7 +79,9 @@ describe('OrdersService.assertBookable (your part)', () => {
   it('accepts a good request for several tables, loads the schedule once and returns the club rate', async () => {
     const { service, schedules } = setup();
 
-    await expect(service.assertBookable(request(['t1', 't2']), NOW)).resolves.toBe(1000);
+    await expect(service.assertBookable(request(['t1', 't2']), NOW)).resolves.toMatchObject({
+      hourlyRateCents: 1000,
+    });
 
     expect(schedules.getSchedule).toHaveBeenCalledTimes(1);
     expect(schedules.getSchedule).toHaveBeenCalledWith('c1');

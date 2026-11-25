@@ -80,10 +80,10 @@ export class OrdersService {
       startsAt: new Date(dto.startsAt),
       endsAt: new Date(dto.endsAt),
     };
-    const hourlyRateCents = await this.assertBookable(request, now);
+    const { clubId, hourlyRateCents } = await this.assertBookable(request, now);
     // A member pays less. One price for everything below: the minimum check, the payment and the
     // order rows (a refund later returns exactly this amount).
-    const discount = await this.memberships.discountPercentFor(userId);
+    const discount = await this.memberships.discountPercentFor(userId, clubId);
     const price = applyDiscount(
       priceCents(hourlyRateCents, request.startsAt, request.endsAt),
       discount,
@@ -167,8 +167,11 @@ export class OrdersService {
   //  3. load the schedule of that club ONCE: this.schedules.getSchedule(clubId).
   //  4. bookingTimeProblem(startsAt, endsAt, now, schedule.timezone): a problem -> BadRequestException(problem).
   //  5. !isInsideWorkingHours(schedule, startsAt, endsAt) -> BadRequestException (outside working hours).
-  // Returns the hourly rate of the club (cents per hour): the price is known once the club is known.
-  async assertBookable(request: BookingRequest, now: Date): Promise<number> {
+  // Returns the club and its hourly rate (cents per hour): the price is known once the club is known.
+  async assertBookable(
+    request: BookingRequest,
+    now: Date,
+  ): Promise<{ clubId: string; hourlyRateCents: number }> {
     const clubIds: string[] = [];
     let hourlyRateCents = 0;
     for (const tableId of request.tableIds) {
@@ -194,7 +197,7 @@ export class OrdersService {
     if (!isInsideWorkingHours(schedule, request.startsAt, request.endsAt)) {
       throw new BadRequestException('Outside working hours');
     }
-    return hourlyRateCents;
+    return { clubId: clubIds[0], hourlyRateCents };
   }
 
   // One transaction: every table is booked or none, so a conflict on the second table leaves nothing

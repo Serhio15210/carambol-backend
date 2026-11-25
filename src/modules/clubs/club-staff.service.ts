@@ -18,6 +18,11 @@ export class ClubStaffService {
     private readonly audit: AuditService,
   ) {}
 
+  // Does this user work in this club (owner or manager)? Other modules ask this, they never read club_staff.
+  isStaff(clubId: string, userId: string): Promise<boolean> {
+    return this.staffRepository.existsBy({ clubId, userId });
+  }
+
   // shortcut: no pagination, a club has a handful of staff; a soft-deleted user stays in the list
   // (the foreign key is not touched by a soft delete); add paging and a join with users if needed.
   async findAllByClub(clubId: string): Promise<ClubStaff[]> {
