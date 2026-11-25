@@ -9,6 +9,7 @@ export const TEST_WEBHOOK_SECRET = 'whsec_e2e_test_secret';
 
 type CreateInput = Parameters<PaymentGateway['createPaymentIntent']>[0];
 type RefundInput = Parameters<PaymentGateway['refund']>[0];
+type PlanPriceInput = Parameters<PaymentGateway['createPlanPrice']>[0];
 type CheckoutInput = Parameters<PaymentGateway['createSubscriptionCheckout']>[0];
 
 // A stand-in for Stripe in the e2e tests: it remembers every call, makes no network request, and
@@ -23,6 +24,8 @@ export class FakePaymentGateway implements PaymentGateway {
   failRefund = false;
   failCancel = false;
   failCheckout = false;
+  planPrices: (PlanPriceInput & { priceId: string })[] = [];
+  failPlanPrice = false;
   // What "Stripe" says about each subscription right now; a test sets it before sending an event.
   subscriptions = new Map<string, SubscriptionSnapshot>();
   failRetrieve = false;
@@ -57,6 +60,8 @@ export class FakePaymentGateway implements PaymentGateway {
     this.failCancel = false;
     this.checkouts = [];
     this.failCheckout = false;
+    this.planPrices = [];
+    this.failPlanPrice = false;
     this.subscriptions = new Map();
     this.failRetrieve = false;
     this.cancelledSubscriptions = [];
@@ -92,6 +97,17 @@ export class FakePaymentGateway implements PaymentGateway {
     if (keyError) return Promise.reject(keyError);
     this.refunds.push(input);
     return Promise.resolve();
+  }
+
+  createPlanPrice(input: PlanPriceInput): Promise<{ priceId: string }> {
+    if (this.failPlanPrice) return Promise.reject(new Error('Stripe is down'));
+    const keyError = this.keyError(input.idempotencyKey, '/v1/prices');
+    if (keyError) return Promise.reject(keyError);
+    const same = this.planPrices.find((p) => p.idempotencyKey === input.idempotencyKey);
+    if (same) return Promise.resolve({ priceId: same.priceId });
+    const priceId = `price_fake_${this.planPrices.length + 1}`;
+    this.planPrices.push({ ...input, priceId });
+    return Promise.resolve({ priceId });
   }
 
   createSubscriptionCheckout(input: CheckoutInput): Promise<{ id: string; url: string }> {

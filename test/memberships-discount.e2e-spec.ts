@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
+import { MembershipPlan } from '@/modules/memberships/entities/membership-plan.entity';
 import { Membership } from '@/modules/memberships/entities/membership.entity';
 import { MembershipStatus } from '@/modules/memberships/types/membership-status.enum';
 import { OrdersService } from '@/modules/orders/orders.service';
@@ -27,6 +28,9 @@ describe('Memberships: the discount on bookings (e2e)', () => {
   let app: INestApplication;
   let gateway: FakePaymentGateway;
   let memberships: Repository<Membership>;
+  let plans: Repository<MembershipPlan>;
+  let lastClubId: string; // the club the last clubWithTables() made
+  let planNo = 0;
   let adminToken: string;
   let player: { accessToken: string; user: { id: string } };
 
@@ -40,8 +44,25 @@ describe('Memberships: the discount on bookings (e2e)', () => {
       .set('Authorization', `Bearer ${player.accessToken}`)
       .send({ tableIds, startsAt: at('12:00'), endsAt: at('14:00') }); // 2 hours
 
-  const membership = (userId: string, status: MembershipStatus) =>
-    memberships.save(memberships.create({ userId, status }));
+  // A membership in a plan of the last club made (20% off unless told otherwise).
+  const membership = async (
+    userId: string,
+    status: MembershipStatus,
+    discountPercent = 20,
+    clubId = lastClubId,
+  ) => {
+    planNo += 1;
+    const plan = await plans.save(
+      plans.create({
+        clubId,
+        name: `Plan ${planNo}`,
+        priceCents: 3000,
+        discountPercent,
+        stripePriceId: `price_${planNo}`,
+      }),
+    );
+    return memberships.save(memberships.create({ userId, status, planId: plan.id, clubId }));
+  };
 
   // A club with the given hourly rate, open on Mondays, with two tables.
   const clubWithTables = async (hourlyRateCents: number) => {
@@ -52,6 +73,7 @@ describe('Memberships: the discount on bookings (e2e)', () => {
       lng: 30.52,
       hourlyRateCents,
     });
+    lastClubId = club.id;
     await api(app)
       .put(`/api/v1/admin/clubs/${club.id}/schedule/hours/1`)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -82,6 +104,7 @@ describe('Memberships: the discount on bookings (e2e)', () => {
     gateway = new FakePaymentGateway();
     app = await createTestApp({ paymentGateway: gateway });
     memberships = app.get(DataSource).getRepository(Membership);
+    plans = app.get(DataSource).getRepository(MembershipPlan);
   });
 
   beforeEach(async () => {
@@ -192,5 +215,42 @@ describe('Memberships: the discount on bookings (e2e)', () => {
 
     expect(gateway.refunds).toHaveLength(1);
     expect(gateway.refunds[0].amountCents).toBe(1600);
+  });
+
+  describe('step 6b: the discount of the plan, only in its club', () => {
+    it("the plan's own discount is used (25% off 20.00 = 15.00)", async () => {
+      const [table] = await clubWithTables(1000);
+      await membership(player.user.id, MembershipStatus.ACTIVE, 25);
+
+      const body = (await book([table]).expect(201)).body as BookingBody;
+
+      expect(body.orders[0].priceCents).toBe(1500);
+    });
+
+    it('a membership of ANOTHER club gives no discount here', async () => {
+      await clubWithTables(1000);
+      const otherClub = lastClubId;
+      const [table] = await clubWithTables(2000); // the club where the booking is made
+      await membership(player.user.id, MembershipStatus.ACTIVE, 50, otherClub);
+
+      const body = (await book([table]).expect(201)).body as BookingBody;
+
+      expect(body.orders[0].priceCents).toBe(4000); // 2 hours x 20.00, no discount
+    });
+
+    it('an old membership without a plan (bought before plans existed) gives no discount', async () => {
+      const [table] = await clubWithTables(1000);
+      await memberships.save(
+        memberships.create({
+          userId: player.user.id,
+          status: MembershipStatus.ACTIVE,
+          clubId: lastClubId,
+        }),
+      );
+
+      const body = (await book([table]).expect(201)).body as BookingBody;
+
+      expect(body.orders[0].priceCents).toBe(2000);
+    });
   });
 });

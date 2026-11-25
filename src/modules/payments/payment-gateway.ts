@@ -45,9 +45,19 @@ export interface PaymentGateway {
     idempotencyKey: string;
   }): Promise<void>;
 
+  // A monthly Stripe Price (with its Product) for a club's membership plan. A Stripe price never
+  // changes: a new price for the plan means calling this again.
+  createPlanPrice(input: {
+    name: string;
+    priceCents: number;
+    currency: string;
+    idempotencyKey: string;
+  }): Promise<{ priceId: string }>;
+
   // A Stripe-hosted page where the customer subscribes to the monthly membership (lesson 20).
   // `referenceId` comes back in the webhooks and tells us which row of ours the subscription belongs to.
   createSubscriptionCheckout(input: {
+    priceId: string;
     referenceId: string;
     idempotencyKey: string;
   }): Promise<{ id: string; url: string }>;
